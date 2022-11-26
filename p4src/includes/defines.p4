@@ -103,18 +103,18 @@ limitations under the License.
 #define DEFAULT_INGRESS_COS                    0
 
 /* BYPASS LOOKUP */
-#define BYPASS_L2                              0x0001
-#define BYPASS_L3                              0x0002
-#define BYPASS_ACL                             0x0004
-#define BYPASS_QOS                             0x0008
-#define BYPASS_METER                           0x0010
-#define BYPASS_SYSTEM_ACL                      0x0020
-#define BYPASS_PKT_VALIDATION                  0x0040
-#define BYPASS_SMAC_CHK                        0x0080
-#define BYPASS_ALL                             0xFFFF
+#define BYPASS_L2                              16w0x0001
+#define BYPASS_L3                              16w0x0002
+#define BYPASS_ACL                             16w0x0004
+#define BYPASS_QOS                             16w0x0008
+#define BYPASS_METER                           16w0x0010
+#define BYPASS_SYSTEM_ACL                      16w0x0020
+#define BYPASS_PKT_VALIDATION                  16w0x0040
+#define BYPASS_SMAC_CHK                        16w0x0080
+#define BYPASS_ALL                             16w0xFFFF
 
 #define DO_LOOKUP(l) \
-    ((ingress_metadata.bypass_lookups & BYPASS_##l) == 0)
+    ((meta.ingress_metadata.bypass_lookups & BYPASS_##l) == 16w0)
 
 #define BYPASS_ALL_LOOKUPS \
-    (ingress_metadata.bypass_lookups == BYPASS_ALL)
+    (meta.ingress_metadata.bypass_lookups == BYPASS_ALL)
