@@ -2,7 +2,11 @@ from ptf.testutils import *
 from scapy.all import Packet
 from scapy.fields import *
 from scapy.all import Ether
+from scapy.all import TCP
+from scapy.all import UDP
 from scapy.all import bind_layers
+
+import logging
 
 
 ###############################################################################
@@ -31,7 +35,7 @@ def verify_any_packet_on_ports_list(test, pkts=[], ports=[], device_number=0):
             for pkt in pkts:
                 logging.debug("Checking for pkt on device %d, port %d",
                               device_number, port)
-                if str(rcv_pkt) == str(pkt):
+                if rcv_pkt == pkt:
                     pkt_cnt += 1
 
     verify_no_other_packets(test)
@@ -46,7 +50,7 @@ def verify_multiple_packets_on_ports(test, plist=[], device=0):
             if rcv_port is None:
                 test.assertTrue(False, 'Failed to receive packet(s) on %d' % port)
             for pkt in pkts[:]:
-                if str(rcv_pkt) == str(pkt):
+                if rcv_pkt == pkt:
                     pkts.remove(pkt)
         test.assertTrue(len(pkts) == 0, "Not all packets for port %d were received" % port)
     verify_no_other_packets(test)
@@ -142,8 +146,8 @@ def simple_cpu_packet(header_version = 0,
                       sflow_sid = 0,
                       sflow_egress_port = 0,
                       inner_pkt = None):
-
-    ether = Ether(str(inner_pkt))
+    
+    ether = inner_pkt
     eth_type = ether.type
     ether.type = 0x9000
 
@@ -167,7 +171,7 @@ def simple_cpu_packet(header_version = 0,
 
     fabric_payload_header = FabricPayloadHeader(ether_type = eth_type)
 
-    pkt = (str(ether)[:14]) / fabric_header / fabric_cpu_header
+    pkt = (bytes(ether)[:14]) / fabric_header / fabric_cpu_header
 
     if sflow_sid:
         pkt = pkt / FabricCpuSflowHeader(sflow_sid = sflow_sid, sflow_egress_port = sflow_egress_port)
@@ -175,7 +179,7 @@ def simple_cpu_packet(header_version = 0,
     pkt = pkt / fabric_payload_header
 
     if inner_pkt:
-        pkt = pkt / (str(inner_pkt)[14:])
+        pkt = pkt / (bytes(inner_pkt)[14:])
     else:
         ip_pkt = simple_ip_only_packet()
         pkt = pkt / ip_pkt
@@ -195,7 +199,7 @@ def simple_unicast_fabric_packet(header_version = 0,
                       nexthop_index = 0,
                       inner_pkt = None):
 
-    ether = Ether(str(inner_pkt))
+    ether = inner_pkt
     eth_type = ether.type
     ether.type = 0x9000
 
@@ -217,10 +221,10 @@ def simple_unicast_fabric_packet(header_version = 0,
     fabric_payload_header = FabricPayloadHeader(ether_type = eth_type)
 
     if inner_pkt:
-        pkt = (str(ether)[:14]) / fabric_header / fabric_unicast_header / fabric_payload_header / (str(inner_pkt)[14:])
+        pkt = (bytes(ether)[:14]) / fabric_header / fabric_unicast_header / fabric_payload_header / (bytes(inner_pkt)[14:])
     else:
         ip_pkt = simple_ip_only_packet()
-        pkt = (str(ether)[:14]) / fabric_header / fabric_unicast_header / fabric_payload_header / ip_pkt
+        pkt = (bytes(ether)[:14]) / fabric_header / fabric_unicast_header / fabric_payload_header / ip_pkt
 
     return pkt
 
@@ -243,7 +247,7 @@ def simple_multicast_fabric_packet(header_version = 0,
                       l1_exclusion_id = 0,
                       inner_pkt = None):
 
-    ether = Ether(str(inner_pkt))
+    ether = inner_pkt
     eth_type = ether.type
     ether.type = 0x9000
 
@@ -270,10 +274,10 @@ def simple_multicast_fabric_packet(header_version = 0,
     fabric_payload_header = FabricPayloadHeader(ether_type = eth_type)
 
     if inner_pkt:
-        pkt = (str(ether)[:14]) / fabric_header / fabric_multicast_header / fabric_payload_header / (str(inner_pkt)[14:])
+        pkt = (bytes(ether)[:14]) / fabric_header / fabric_multicast_header / fabric_payload_header / (bytes(inner_pkt)[14:])
     else:
         ip_pkt = simple_ip_only_packet()
-        pkt = (str(ether)[:14]) / fabric_header / fabric_multicast_header / fabric_payload_header / ip_pkt
+        pkt = (bytes(ether)[:14]) / fabric_header / fabric_multicast_header / fabric_payload_header / ip_pkt
 
     return pkt
 
@@ -286,7 +290,7 @@ def crc16_regular(buff, crc = 0, poly = 0xa001):
     l = len(buff)
     i = 0
     while i < l:
-        ch = ord(buff[i])
+        ch = buff[i]
         uc = 0
         while uc < 8:
             if (crc & 1) ^ (ch & 1):
@@ -302,13 +306,13 @@ def entropy_hash(pkt, layer='ipv4', ifindex=0):
     buff=''
     if layer == 'ether':
         buff += str(ifindex).zfill(4)
-    buff += pkt[Ether].src.translate(None, ':')
-    buff += pkt[Ether].dst.translate(None, ':')
+    buff += pkt[Ether].src.replace(':', '')
+    buff += pkt[Ether].dst.replace(':', '')
     if layer == 'ether':
         buff += str(hex(pkt[Ether].type)[2:]).zfill(4)
     elif layer == 'ipv4':
-        buff += socket.inet_aton(pkt[IP].src).encode('hex')
-        buff += socket.inet_aton(pkt[IP].dst).encode('hex')
+        buff += socket.inet_aton(pkt[IP].src).hex()
+        buff += socket.inet_aton(pkt[IP].dst).hex()
         buff += str(hex(pkt[IP].proto)[2:]).zfill(2)
         if pkt[IP].proto == 6:
             buff += str(hex(pkt[TCP].sport)[2:]).zfill(4)
@@ -317,11 +321,11 @@ def entropy_hash(pkt, layer='ipv4', ifindex=0):
             buff += str(hex(pkt[UDP].sport)[2:]).zfill(4)
             buff += str(hex(pkt[UDP].dport)[2:]).zfill(4)
     elif layer == 'ipv6':
-        print 'Not Implemented'
+        print('Not Implemented')
         buf = ''
     else:
         buf = ''
     # h = socket.htons(crc16_regular(buff.decode('hex')))
-    h = crc16_regular(buff.decode('hex'))
+    h = crc16_regular(bytes.fromhex(buff))
     return h
 

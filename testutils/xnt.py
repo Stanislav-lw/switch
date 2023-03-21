@@ -3,23 +3,40 @@ import sys
 from ptf.testutils import *
 
 try:
-    import scapy.config
-    import scapy.route
-    import scapy.layers.l2
-    import scapy.layers.inet
-    import scapy.main
+    from scapy.all import *
 except ImportError:
-    sys.exit("Need to install scapy for packet parsing")
+    sys.exit("XNT Need to install scapy for packet parsing")
 
-try:
-    scapy.main.load_contrib("vxlan")
-    scapy.main.load_contrib("xnt")
-    VXLAN_GPE = scapy.contrib.vxlan.VXLAN_GPE
-    VXLAN_GPE_INT = scapy.contrib.xnt.VXLAN_GPE_INT
-    INT_META_HDR = scapy.contrib.xnt.INT_META_HDR
-    INT_hop_info = scapy.contrib.xnt.INT_hop_info
-except:
-    pass
+class VXLAN_GPE_INT(Packet):
+    name = "VXLAN_GPE_INT_header"
+    fields_desc = [ XByteField("int_type", 0x01),
+                    XByteField("rsvd", 0x00),
+                    XByteField("length", 0x00),
+                    XByteField("next_proto", 0x03) ]
+
+class INT_META_HDR(Packet):
+    name = "INT_metadata_header"
+    fields_desc = [ BitField("ver", 0, 2), BitField("rep", 0, 2),
+                    BitField("c", 0, 1), BitField("e", 0, 1),
+                    BitField("rsvd1", 0, 5), BitField("ins_cnt", 1, 5),
+                    BitField("max_hop_cnt", 32, 8),
+                    BitField("total_hop_cnt", 0, 8),
+                    ShortField("inst_mask", 0x8000),
+                    ShortField("rsvd2", 0x0000)]
+
+class INT_hop_info(Packet):
+    name = "INT_hop_info"
+    fields_desc = [ BitField("bos", 0, 1),
+                    XBitField("val", 0x7FFFFFFF, 31) ]
+
+class VXLAN_GPE(Packet):
+    name = "VXLAN_GPE"
+    fields_desc = [ FlagsField("flags", 0x18, 8, ['R', 'R', 'R', 'I', 'P', 'R', 'R', 'R']),
+                    XShortField("reserved1", 0x0000),
+                    XByteField("next_proto", 0x03),
+                    ThreeBytesField("vni", 0),
+                    XByteField("reserved2", 0x00)]
+
 
 def vxlan_gpe_int_src_packet(eth_dst='00:77:66:55:44:33',
                              eth_src='00:22:22:22:22:22',

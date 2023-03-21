@@ -32,8 +32,8 @@ swports = [x for x in range(65)]
 @group('mcast')
 class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
     def setUp(self):
-        print
-        print 'Configuring devices for L3 multicast test cases'
+        print()
+        print('Configuring devices for L3 multicast test cases')
 
         api_base_tests.ThriftInterfaceDataPlane.setUp(self)
         self.client.switcht_api_init(device)
@@ -327,7 +327,7 @@ class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
                                                       self.mgrp_ip1)
 
     def runTest(self):
-        print "IPv4 multicast hit (RPF pass)"
+        print("IPv4 multicast hit (RPF pass)")
         pkt = simple_udp_packet(eth_dst='01:00:5e:01:01:05',
                                 eth_src='00:22:22:22:22:22',
                                 ip_src='10.0.10.5',
@@ -375,7 +375,7 @@ class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
                                         with_udp_chksum=False,
                                         vxlan_vni=0x5768,
                                         inner_frame=pkt3)
-        send_packet(self, swports[0], str(pkt))
+        send_packet(self, swports[0], pkt)
         p1 = [swports[1], [pkt1, pkt2]]
         p2 = [swports[2], [pkt3]]
         p3 = [swports[3], [pkt3]]
@@ -385,7 +385,7 @@ class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
         p7 = [swports[7], [pkt1, pkt2, pkt4]]
         verify_multiple_packets_on_ports(self, [p1, p2, p3, p4, p5, p6, p7])
 
-        print "IPv4 multicast hit (RPF fail - flood in ingress vlan)"
+        print("IPv4 multicast hit (RPF fail - flood in ingress vlan)")
         pkt = simple_udp_packet(eth_dst='01:00:5e:01:01:05',
                                 eth_src='00:22:22:22:22:22',
                                 ip_src='10.0.10.5',
@@ -400,14 +400,14 @@ class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
                                  ip_dst='230.1.1.5',
                                  ip_ttl=64,
                                  pktlen=104)
-        send_packet(self, swports[2], str(pkt))
+        send_packet(self, swports[2], pkt)
         p1 = [swports[1], [pkt1]]
         p5 = [swports[5], [pkt1]]
         p6 = [swports[6], [pkt1]]
         p7 = [swports[7], [pkt1]]
         verify_multiple_packets_on_ports(self, [p1, p5, p6, p7])
 
-        print "IPv4 multicast hit (RPF fail - snooping enabled)"
+        print("IPv4 multicast hit (RPF fail - snooping enabled)")
         pkt = simple_udp_packet(eth_dst='01:00:5e:01:01:05',
                                 eth_src='00:22:22:22:22:22',
                                 dl_vlan_enable=True,
@@ -416,12 +416,12 @@ class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
                                 ip_dst='230.1.1.5',
                                 ip_ttl=64,
                                 pktlen=100)
-        send_packet(self, swports[6], str(pkt))
+        send_packet(self, swports[6], pkt)
         p5 = [swports[5], [pkt]]
         p7 = [swports[7], [pkt]]
         verify_multiple_packets_on_ports(self, [p5, p7])
 
-        print "IPv4 multicast miss (snooping enabled)"
+        print("IPv4 multicast miss (snooping enabled)")
         pkt = simple_udp_packet(eth_dst='01:00:5e:01:01:05',
                                 eth_src='00:22:22:22:22:22',
                                 dl_vlan_enable=True,
@@ -430,10 +430,10 @@ class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
                                 ip_dst='231.1.1.5',
                                 ip_ttl=64,
                                 pktlen=100)
-        send_packet(self, swports[6], str(pkt))
+        send_packet(self, swports[6], pkt)
         verify_multiple_packets_on_ports(self, [])
 
-        print "IPv4 multicast miss (snooping disabled)"
+        print("IPv4 multicast miss (snooping disabled)")
         pkt = simple_udp_packet(eth_dst='01:00:5e:01:01:05',
                                 eth_src='00:22:22:22:22:22',
                                 dl_vlan_enable=True,
@@ -453,7 +453,7 @@ class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
                                     reason_code=0,
                                     ingress_bd=3,
                                     inner_pkt=pkt)
-        send_packet(self, swports[6], str(pkt))
+        send_packet(self, swports[6], pkt)
         p1 = [swports[1], [pkt]]
         p2 = [swports[2], [pkt1]]
         p5 = [swports[5], [pkt]]
@@ -461,7 +461,7 @@ class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
         p64 = [swports[cpu_port], [cpu_pkt]]
         verify_multiple_packets_on_ports(self, [p1, p2, p5, p7, p64])
 
-        print "IPv4 multicast (tunneled packet)"
+        print("IPv4 multicast (tunneled packet)")
         pkt = simple_udp_packet(eth_dst='01:00:5e:01:01:06',
                                 eth_src='00:22:22:22:22:22',
                                 ip_src='10.0.10.5',
@@ -509,7 +509,7 @@ class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
                                   ip_dst='230.1.1.6',
                                   ip_ttl=63,
                                   pktlen=104)
-        send_packet(self, swports[4], str(vxlan_pkt))
+        send_packet(self, swports[4], vxlan_pkt)
         p0 = [swports[0], [epkt1]]
         p1 = [swports[1], [epkt2, epkt3]]
         p2 = [swports[2], [epkt1]]
@@ -614,8 +614,8 @@ class L3Multicast(api_base_tests.ThriftInterfaceDataPlane):
 @group('mcast')
 class L3MulticastBidir(api_base_tests.ThriftInterfaceDataPlane):
     def setUp(self):
-        print
-        print 'Configuring devices for L3 multicast (Bidir) test cases'
+        print()
+        print('Configuring devices for L3 multicast (Bidir) test cases')
 
         api_base_tests.ThriftInterfaceDataPlane.setUp(self)
         self.client.switcht_api_init(device)
@@ -815,7 +815,7 @@ class L3MulticastBidir(api_base_tests.ThriftInterfaceDataPlane):
                                                       self.mgrp_ip1)
 
     def runTest(self):
-        print "IPv4 multicast (bidir) hit (RPF pass)"
+        print("IPv4 multicast (bidir) hit (RPF pass)")
         pkt = simple_udp_packet(eth_dst='01:00:5e:01:01:05',
                                 eth_src='00:22:22:22:22:22',
                                 ip_src='10.0.10.5',
@@ -863,7 +863,7 @@ class L3MulticastBidir(api_base_tests.ThriftInterfaceDataPlane):
                                         with_udp_chksum=False,
                                         vxlan_vni=0x5768,
                                         inner_frame=pkt3)
-        send_packet(self, swports[0], str(pkt))
+        send_packet(self, swports[0], pkt)
         p1 = [swports[1], [pkt1, pkt2]]
         p2 = [swports[2], [pkt3]]
         p5 = [swports[5], [pkt1, pkt2, pkt4]]
@@ -871,7 +871,7 @@ class L3MulticastBidir(api_base_tests.ThriftInterfaceDataPlane):
         p7 = [swports[7], [pkt1, pkt2, pkt4]]
         verify_multiple_packets_on_ports(self, [p1, p2, p5, p6, p7])
 
-        print "IPv4 multicast (bidir) hit (RPF pass)"
+        print("IPv4 multicast (bidir) hit (RPF pass)")
         pkt5 = simple_udp_packet(eth_dst='01:00:5e:01:01:05',
                                  eth_src='00:22:22:22:22:22',
                                  dl_vlan_enable=True,
@@ -888,7 +888,7 @@ class L3MulticastBidir(api_base_tests.ThriftInterfaceDataPlane):
                                  ip_dst='230.1.1.5',
                                  ip_ttl=63,
                                  pktlen=104)
-        send_packet(self, swports[1], str(pkt5))
+        send_packet(self, swports[1], pkt5)
         p0 = [swports[0], [pkt3]]
         p1 = [swports[1], [pkt6]]
         p2 = [swports[2], [pkt]]
@@ -897,7 +897,7 @@ class L3MulticastBidir(api_base_tests.ThriftInterfaceDataPlane):
         p7 = [swports[7], [pkt6, pkt5, pkt4]]
         verify_multiple_packets_on_ports(self, [p0, p1, p2, p5, p6, p7])
 
-        print "IPv4 multicast (bidir) hit (RPF fail - snooping enabled)"
+        print("IPv4 multicast (bidir) hit (RPF fail - snooping enabled)")
         pkt = simple_udp_packet(eth_dst='01:00:5e:01:01:05',
                                 eth_src='00:22:22:22:22:22',
                                 dl_vlan_enable=True,
@@ -906,12 +906,12 @@ class L3MulticastBidir(api_base_tests.ThriftInterfaceDataPlane):
                                 ip_dst='230.1.1.5',
                                 ip_ttl=64,
                                 pktlen=100)
-        send_packet(self, swports[6], str(pkt))
+        send_packet(self, swports[6], pkt)
         p5 = [swports[5], [pkt]]
         p7 = [swports[7], [pkt]]
         verify_multiple_packets_on_ports(self, [p5, p7])
 
-        print "IPv4 multicast (bidir) miss (snooping enabled)"
+        print("IPv4 multicast (bidir) miss (snooping enabled)")
         pkt = simple_udp_packet(eth_dst='01:00:5e:01:01:05',
                                 eth_src='00:22:22:22:22:22',
                                 dl_vlan_enable=True,
@@ -920,7 +920,7 @@ class L3MulticastBidir(api_base_tests.ThriftInterfaceDataPlane):
                                 ip_dst='231.1.1.5',
                                 ip_ttl=64,
                                 pktlen=100)
-        send_packet(self, swports[6], str(pkt))
+        send_packet(self, swports[6], pkt)
         verify_multiple_packets_on_ports(self, [])
 
     def tearDown(self):

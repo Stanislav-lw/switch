@@ -1,4 +1,8 @@
 import ptf.dataplane as dataplane
+import logging
+import scapy.main
+
+scapy.main.load_contrib('erspan')
 
 def match_erspan3_pkt(exp_pkt, pkt, ignore_tstamp=True):
     """

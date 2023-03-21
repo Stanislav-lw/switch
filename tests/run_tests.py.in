@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright 2013-present Barefoot Networks, Inc.
 #
@@ -38,7 +38,7 @@ cpu_veth = 251
 
 if __name__ == "__main__":
     if "@PTF@" == "":
-        print "configure could not find an installed version of ptf"
+        print("configure could not find an installed version of ptf")
         sys.exit(1)
     new_args = []
     if args.pd_thrift:
@@ -52,7 +52,7 @@ if __name__ == "__main__":
         new_args += ["--pypath", switchsai_py]
     new_args += ["--pypath", testutils_dir]
     new_args += ["--test-dir", args.test_dir]
-    for port in xrange(max_ports):
+    for port in range(max_ports):
         new_args += ["--interface", "%d@veth%d" % (port, 2 * port + 1)]
     new_args += ["--interface", "%s@veth%s" % (cpu_port, cpu_veth)]
     new_args += unknown_args

@@ -40,11 +40,11 @@ invalid_hdl = -1
 @group('sflow')
 class TestSflow_session(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print "Create/Delete sflow sessions Test"
+        print("Create/Delete sflow sessions Test")
         s_hdls = []
         # create 16 sessions (max allowed = 16)
         for s in range (0,16):
-            print "Create sflow session ", s
+            print("Create sflow session ", s)
             sflow_info1 = switcht_sflow_info_t(timeout_usec = 100,
                                             sample_rate = 100+s, #5
                                             extract_len = 80,
@@ -53,7 +53,7 @@ class TestSflow_session(api_base_tests.ThriftInterfaceDataPlane):
 
             sf_hdl = self.client.switcht_api_sflow_session_create(device, sflow_info1)
             assert(sf_hdl != invalid_hdl)
-            print "hdl = ",  sf_hdl
+            print("hdl = ",  sf_hdl)
             s_hdls.append(sf_hdl)
         # create 17th session - should fail
         sflow_info1 = switcht_sflow_info_t(timeout_usec = 100,
@@ -62,14 +62,14 @@ class TestSflow_session(api_base_tests.ThriftInterfaceDataPlane):
                                             collector_type = 0, #CPU
                                             egress_port_hdl = cpu_port);
         sf_hdl = self.client.switcht_api_sflow_session_create(device, sflow_info1)
-        print "hdl = ", sf_hdl
+        print("hdl = ", sf_hdl)
         assert(sf_hdl == invalid_hdl)
 
         # delete 2 sessions, create 2 sessions
-        print "Delete a few sessions"
+        print("Delete a few sessions")
         self.client.switcht_api_sflow_session_delete(device, s_hdls[0], 0)
         self.client.switcht_api_sflow_session_delete(device, s_hdls[7], 0)
-        print "Re-create a few sessions"
+        print("Re-create a few sessions")
         s_hdls[0] = self.client.switcht_api_sflow_session_create(device, sflow_info1)
         assert(s_hdls[0] != invalid_hdl)
         s_hdls[7] = self.client.switcht_api_sflow_session_create(device, sflow_info1)
@@ -78,13 +78,13 @@ class TestSflow_session(api_base_tests.ThriftInterfaceDataPlane):
         # delete all sessions
         for s in range (0,16):
             self.client.switcht_api_sflow_session_delete(device, s_hdls[s], 0)
-        print "Done"
+        print("Done")
 
 ###############################################################################
 @group('sflow')
 class TestSflow_ingress_port(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print "Test sflow based on ingress port using packet on port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print("Test sflow based on ingress port using packet on port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])")
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -116,7 +116,7 @@ class TestSflow_ingress_port(api_base_tests.ThriftInterfaceDataPlane):
         self.client.switcht_api_l3_route_add(0, vrf, i_ip3, nhop)
 
         # create an sflow session
-        print "Create sflow session"
+        print("Create sflow session")
         sflow_info1 = switcht_sflow_info_t(timeout_usec = 100,
                                             sample_rate = 1,
                                             extract_len = 0,
@@ -127,14 +127,14 @@ class TestSflow_ingress_port(api_base_tests.ThriftInterfaceDataPlane):
 
         # attach sflow session to ingress port 1
         # create kvp to match ingress port
-        print "Attach sflow session to port 1"
+        print("Attach sflow session to port 1")
         kvp = []
         kvp_val = switcht_acl_value_t(value_num=if1)
         kvp_mask = switcht_acl_value_t(value_num=0xffffffff)
         kvp.append(switcht_acl_key_value_pair_t(0, kvp_val, kvp_mask))
         flow_hdl1 = self.client.switcht_api_sflow_session_attach(device, sflow1, 1, 0, 0, kvp)
 
-        print "Attach sflow session to port 2"
+        print("Attach sflow session to port 2")
         kvp = []
         kvp_val = switcht_acl_value_t(value_num=if2)
         kvp_mask = switcht_acl_value_t(value_num=0xffffffff)
@@ -170,7 +170,7 @@ class TestSflow_ingress_port(api_base_tests.ThriftInterfaceDataPlane):
 
         sflow_sid = sflow1 & 0x03FFFFFF             # handle_to_id
         flow_id = flow_hdl1 & 0x03FFFFFF
-        print "sflow sid = %d, flow_id %d" % (sflow_sid, flow_id)
+        print("sflow sid = %d, flow_id %d" % (sflow_sid, flow_id))
         exp_pkt_sflow = simple_cpu_packet(
                                           ingress_ifindex = 2,
                                           ingress_bd = 2,
@@ -181,30 +181,30 @@ class TestSflow_ingress_port(api_base_tests.ThriftInterfaceDataPlane):
                                           inner_pkt=pkt)
 
         for i in range(0,1):
-            send_packet(self, 1, str(pkt))
+            send_packet(self, 1, pkt)
             verify_packet(self, exp_pkt, swports[2])
             verify_packet(self, exp_pkt_sflow, cpu_port)
 
-        print "Get sflow session sample pool count"
+        print("Get sflow session sample pool count")
         stats = self.client.switcht_api_sflow_session_sample_count_get(0, sflow1, flow_hdl1)
         self.assertEqual(stats.num_packets, 1)
-        print stats
+        print(stats)
 
-        print "Reset sflow session sample pool count"
+        print("Reset sflow session sample pool count")
         self.client.switcht_api_sflow_session_sample_count_reset(0, sflow1, flow_hdl1)
         stats = self.client.switcht_api_sflow_session_sample_count_get(0, sflow1, flow_hdl1)
         self.assertEqual(stats.num_packets, 0)
-        print stats
+        print(stats)
 
-        print "Detach sflow Session"
+        print("Detach sflow Session")
         self.client.switcht_api_sflow_session_detach(device, sflow1, flow_hdl1)
         # make sure pkts are not sent to cpu anymore
-        send_packet(self, 1, str(pkt))
+        send_packet(self, 1, pkt)
         verify_packet(self, exp_pkt, swports[2])
         verify_no_other_packets(self)
 
-        print "Delete sflow Session"
-        print "Attach more sflow sessions before deletion"
+        print("Delete sflow Session")
+        print("Attach more sflow sessions before deletion")
         kvp = []
         kvp_val = switcht_acl_value_t(value_num=if1)
         kvp_mask = switcht_acl_value_t(value_num=0xffffffff)

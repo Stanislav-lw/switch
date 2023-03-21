@@ -50,10 +50,12 @@ def init_pre(mc, sess_hdl, num_pipes, start_mcidx, chan_per_port, flood_mcidx):
     mc.mc_associate_node(sess_hdl, dev_id, mc_grp_hdl, mc_node_hdl, 0, 0)
 
 def set_port_or_lag_bitmap(bit_map_size, indicies):
-    bit_map = [0] * ((bit_map_size+7)/8)
+    value = int(((bit_map_size+7)/8))
+    bit_map = [0] * value
     for i in indicies:
         index = port_to_bit_idx(i)
-        bit_map[index/8] = (bit_map[index/8] | (1 << (index%8))) & 0xFF
+        array_index = int(index/8)
+        bit_map[array_index] = (bit_map[array_index] | (1 << (index%8))) & 0xFF
     return bytes_to_string(bit_map)
 
 
@@ -1471,6 +1473,6 @@ def delete_rid(client, sess_hdl, dev, hdl):
     client.rid_table_delete(sess_hdl, dev, hdl)
 
 def client_init(client, sess_hdl, dev_tgt):
-    print "Cleaning state"
+    print("Cleaning state")
     client.clean_all(sess_hdl, dev_tgt)
     return 0

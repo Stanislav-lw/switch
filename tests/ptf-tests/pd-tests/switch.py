@@ -30,6 +30,7 @@ from ptf.thriftutils import *
 
 import os
 
+sys.path.append('/usr/local/lib/python3.7/site-packages/bm/pdfixed')
 from p4_pd_rpc.ttypes import *
 from res_pd_rpc.ttypes import *
 from mc_pd_rpc.ttypes import *
@@ -107,7 +108,7 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
 
         self.conn_mgr.complete_operations(sess_hdl)
 
-        print "Sending packet port 1 -> port 2 on vlan 10 (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print("Sending packet port 1 -> port 2 on vlan 10 (192.168.0.1 -> 10.0.0.1 [id = 101])")
         pkt = simple_tcp_packet(eth_dst='00:22:22:22:22:22',
                                 eth_src='00:11:11:11:11:11',
                                 ip_dst='10.0.0.1',
@@ -116,7 +117,7 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
                                 ip_ttl=64,
                                 ip_ihl=5)
         try:
-            send_packet(self, 1, str(pkt))
+            send_packet(self, 1, pkt)
             verify_packets(self, pkt, [2])
         finally:
             delete_default_entries(self.client, sess_hdl, device)
@@ -147,7 +148,7 @@ class L3Ipv4Test(pd_base_tests.ThriftInterfaceDataPlane):
         pd_base_tests.ThriftInterfaceDataPlane.__init__(self, "dc")
 
     def runTest(self):
-        print
+        print()
         sess_hdl = self.conn_mgr.client_init()
         dev_tgt = DevTarget_t(0, hex_to_i16(0xFFFF))
         device = 0
@@ -210,7 +211,7 @@ class L3Ipv4Test(pd_base_tests.ThriftInterfaceDataPlane):
         #Add route
         route_hdl2 = program_ipv4_route(self.client, sess_hdl, dev_tgt, vrf, 0x14141401, 32, nhop2)
 
-        print "Sending packet port 1 -> port 2 (10.10.10.1 -> 20.20.20.1 [id = 101])"
+        print("Sending packet port 1 -> port 2 (10.10.10.1 -> 20.20.20.1 [id = 101])")
         self.conn_mgr.complete_operations(sess_hdl)
 
         pkt = simple_tcp_packet(eth_dst='00:33:33:33:33:33',
@@ -228,7 +229,7 @@ class L3Ipv4Test(pd_base_tests.ThriftInterfaceDataPlane):
                                 ip_ttl=63,
                                 ip_ihl=5)
         try:
-            send_packet(self, 1, str(pkt))
+            send_packet(self, 1, pkt)
             verify_packets(self, exp_pkt, [2])
         finally:
             delete_default_entries(self.client, sess_hdl, device)
@@ -265,9 +266,9 @@ class L3Ipv6Test(pd_base_tests.ThriftInterfaceDataPlane):
         pd_base_tests.ThriftInterfaceDataPlane.__init__(self, "dc")
 
     def runTest(self):
-        print
+        print()
         if ipv6_enabled == 0:
-            print "ipv6 not enabled"
+            print("ipv6 not enabled")
             return
 
         sess_hdl = self.conn_mgr.client_init()
@@ -336,7 +337,7 @@ class L3Ipv6Test(pd_base_tests.ThriftInterfaceDataPlane):
         route_hdl2 = program_ipv6_route(self.client, sess_hdl, dev_tgt, vrf,
                                         '3000::1', 128, nhop2, ipv6_enabled)
 
-        print "Sending packet port 1 -> port 2 (10.10.10.1 -> 20.20.20.1 [id = 101])"
+        print("Sending packet port 1 -> port 2 (10.10.10.1 -> 20.20.20.1 [id = 101])")
         self.conn_mgr.complete_operations(sess_hdl)
 
         pkt = simple_tcpv6_packet(eth_dst='00:33:33:33:33:33',
@@ -350,7 +351,7 @@ class L3Ipv6Test(pd_base_tests.ThriftInterfaceDataPlane):
                                 ipv6_src='2000::1',
                                 ipv6_hlim=63)
         try:
-            send_packet(self, 1, str(pkt))
+            send_packet(self, 1, pkt)
             verify_packets(self, exp_pkt, [2])
         finally:
 
@@ -387,16 +388,15 @@ class L3Ipv6Test(pd_base_tests.ThriftInterfaceDataPlane):
             self.conn_mgr.complete_operations(sess_hdl)
             self.conn_mgr.client_cleanup(sess_hdl)
 
-
 #Basic Vxlan Tunneling Test case
 class L2VxlanTunnelTest(pd_base_tests.ThriftInterfaceDataPlane):
     def __init__(self):
         pd_base_tests.ThriftInterfaceDataPlane.__init__(self, "dc")
 
     def runTest(self):
-        print
+        print()
         if tunnel_enabled == 0:
-            print "tunnel not enabled"
+            print("tunnel not enabled")
             return
 
         sess_hdl = self.conn_mgr.client_init()
@@ -488,9 +488,9 @@ class L2VxlanTunnelTest(pd_base_tests.ThriftInterfaceDataPlane):
 
         #Egress Tunnel Decap - Decapsulate the vxlan header
 
-        print "Sending packet port 1 -> port 2 - Vxlan tunnel encap"
-        print "Inner packet (192.168.10.1 -> 192.168.20.2 [id = 101])"
-        print "Outer packet (10.10.10.1 -> 10.10.10.2 [vnid = 0x1234, id = 101])"
+        print("Sending packet port 1 -> port 2 - Vxlan tunnel encap")
+        print("Inner packet (192.168.10.1 -> 192.168.20.2 [id = 101])")
+        print("Outer packet (10.10.10.1 -> 10.10.10.2 [vnid = 0x1234, id = 101])")
         pkt1 = simple_tcp_packet(eth_dst='00:22:22:22:22:22',
                                 eth_src='00:11:11:11:11:11',
                                 ip_dst='192.168.10.2',
@@ -510,9 +510,9 @@ class L2VxlanTunnelTest(pd_base_tests.ThriftInterfaceDataPlane):
                                 vxlan_vni=0x1234,
                                 inner_frame=pkt1)
 
-        print "Sending packet port 2 -> port 1 - Vxlan tunnel decap"
-        print "Inner packet (192.168.10.2 -> 192.168.20.1 [id = 101])"
-        print "Outer packet (10.10.10.2 -> 10.10.10.1 [vnid = 0x1234, id = 101])"
+        print("Sending packet port 2 -> port 1 - Vxlan tunnel decap")
+        print("Inner packet (192.168.10.2 -> 192.168.20.1 [id = 101])")
+        print("Outer packet (10.10.10.2 -> 10.10.10.1 [vnid = 0x1234, id = 101])")
         pkt2 = simple_tcp_packet(eth_dst='00:11:11:11:11:11',
                                 eth_src='00:22:22:22:22:22',
                                 ip_dst='192.168.10.1',
@@ -531,9 +531,9 @@ class L2VxlanTunnelTest(pd_base_tests.ThriftInterfaceDataPlane):
                                 vxlan_vni=0x1234,
                                 inner_frame=pkt2)
         try:
-            send_packet(self, 1, str(pkt1))
+            send_packet(self, 1, pkt1)
             verify_packets(self, vxlan_pkt1, [2])
-            send_packet(self, 2, str(vxlan_pkt2))
+            send_packet(self, 2, vxlan_pkt2)
             verify_packets(self, pkt2, [1])
         finally:
             delete_default_entries(self.client, sess_hdl, device)
@@ -572,15 +572,14 @@ class L2VxlanTunnelTest(pd_base_tests.ThriftInterfaceDataPlane):
             self.conn_mgr.complete_operations(sess_hdl)
             self.conn_mgr.client_cleanup(sess_hdl)
 
-
 class L3VxlanTunnelTest(pd_base_tests.ThriftInterfaceDataPlane):
     def __init__(self):
         pd_base_tests.ThriftInterfaceDataPlane.__init__(self, "dc")
 
     def runTest(self):
-        print
+        print()
         if tunnel_enabled == 0:
-            print "tunnel not enabled"
+            print("tunnel not enabled")
             return
         sess_hdl = self.conn_mgr.client_init()
         dev_tgt = DevTarget_t(0, hex_to_i16(0xFFFF))
@@ -676,9 +675,9 @@ class L3VxlanTunnelTest(pd_base_tests.ThriftInterfaceDataPlane):
         self.conn_mgr.complete_operations(sess_hdl)
 
 
-        print "Sending packet port 1 -> port 2 - Vxlan tunnel encap"
-        print "Inner packet (10.168.10.1 -> 10.168.11.1 [id = 101])"
-        print "Outer packet (10.10.10.1 -> 10.10.10.2 [vnid = 0x1234, id = 101])"
+        print("Sending packet port 1 -> port 2 - Vxlan tunnel encap")
+        print("Inner packet (10.168.10.1 -> 10.168.11.1 [id = 101])")
+        print("Outer packet (10.10.10.1 -> 10.10.10.2 [vnid = 0x1234, id = 101])")
         pkt1 = simple_tcp_packet(eth_dst='00:33:33:33:33:33',
                                 eth_src='00:11:11:11:11:11',
                                 ip_dst='10.168.11.1',
@@ -706,9 +705,9 @@ class L3VxlanTunnelTest(pd_base_tests.ThriftInterfaceDataPlane):
                                 vxlan_vni=0x1234,
                                 inner_frame=pkt2)
 
-        print "Sending packet port 2 -> port 1 - Vxlan tunnel decap"
-        print "Inner packet (10.168.11.1 -> 10.168.10.1 [id = 101])"
-        print "Outer packet (10.10.10.2 -> 10.10.10.1 [vnid = 0x1234, id = 101])"
+        print("Sending packet port 2 -> port 1 - Vxlan tunnel decap")
+        print("Inner packet (10.168.11.1 -> 10.168.10.1 [id = 101])")
+        print("Outer packet (10.10.10.2 -> 10.10.10.1 [vnid = 0x1234, id = 101])")
         pkt3 = simple_tcp_packet(eth_dst='00:33:33:33:33:33',
                                 eth_src='00:22:22:22:22:22',
                                 ip_dst='10.168.10.1',
@@ -735,9 +734,9 @@ class L3VxlanTunnelTest(pd_base_tests.ThriftInterfaceDataPlane):
                                 ip_ttl=63)
 
         try:
-            send_packet(self, 1, str(pkt1))
+            send_packet(self, 1, pkt1)
             verify_packets(self, vxlan_pkt1, [2])
-            send_packet(self, 2, str(vxlan_pkt2))
+            send_packet(self, 2, vxlan_pkt2)
             verify_packets(self, pkt4, [1])
         finally:
             delete_default_entries(self.client, sess_hdl, device)
@@ -781,7 +780,6 @@ class L3VxlanTunnelTest(pd_base_tests.ThriftInterfaceDataPlane):
 
             self.conn_mgr.complete_operations(sess_hdl)
             self.conn_mgr.client_cleanup(sess_hdl)
-
 
 class L2LearningTest(pd_base_tests.ThriftInterfaceDataPlane):
     def __init__(self):
@@ -842,13 +840,13 @@ class L2LearningTest(pd_base_tests.ThriftInterfaceDataPlane):
                                 ip_id=101,
                                 ip_ttl=64)
         try:
-            send_packet(self, 1, str(pkt))
+            send_packet(self, 1, pkt)
             time.sleep(learn_timeout + 1)
             digests = self.client.mac_learn_digest_get_digest(sess_hdl)
             assert len(digests.msg) == 1
             mac_str = digests.msg[0].l2_metadata_lkp_mac_sa
-            print "new mac learnt ", mac_str,
-            print "on port ", digests.msg[0].ingress_metadata_ifindex
+            print("new mac learnt ", mac_str)
+            print("on port ", digests.msg[0].ingress_metadata_ifindex)
         finally:
             delete_default_entries(self.client, sess_hdl, device)
             self.client.mac_learn_digest_digest_notify_ack(sess_hdl, digests.msg_ptr)
@@ -952,7 +950,7 @@ class L2FloodTest(pd_base_tests.ThriftInterfaceDataPlane):
                                 ip_ttl=64)
 
         try:
-            send_packet(self, port1, str(pkt))
+            send_packet(self, port1, pkt)
             verify_packets(self, pkt, [port2, port3, port4])
         finally:
             delete_default_entries(self.client, sess_hdl, device)
@@ -989,7 +987,7 @@ class L2QinQTest(pd_base_tests.ThriftInterfaceDataPlane):
         pd_base_tests.ThriftInterfaceDataPlane.__init__(self, "dc")
 
     def runTest(self):
-        print
+        print()
         sess_hdl = self.conn_mgr.client_init()
         dev_tgt = DevTarget_t(0, hex_to_i16(0xFFFF))
         device = 0
@@ -1077,11 +1075,11 @@ class L2QinQTest(pd_base_tests.ThriftInterfaceDataPlane):
                               pktlen=100)
         exp_pkt2[Ether].type = 0x9100
         try:
-            print "Sending packet port 1 (QinQ) -> port 2 (Untagged)"
-            send_packet(self, 1, str(pkt))
+            print("Sending packet port 1 (QinQ) -> port 2 (Untagged)")
+            send_packet(self, 1, pkt)
             verify_packets(self, exp_pkt, [2])
-            print "Sending packet port 2 (Untagged) -> port 2 (QinQ)"
-            send_packet(self, 2, str(pkt2))
+            print("Sending packet port 2 (Untagged) -> port 2 (QinQ)")
+            send_packet(self, 2, pkt2)
             verify_packets(self, exp_pkt2, [1])
         finally:
             delete_default_entries(self.client, sess_hdl, device)
@@ -1105,4 +1103,3 @@ class L2QinQTest(pd_base_tests.ThriftInterfaceDataPlane):
 
             self.conn_mgr.complete_operations(sess_hdl)
             self.conn_mgr.client_cleanup(sess_hdl)
-

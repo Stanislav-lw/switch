@@ -39,8 +39,8 @@ invalid_hdl = -1
 @group('qos')
 class L3IPv4QosDscpRewriteTest(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print
-        print "Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print()
+        print("Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])")
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -120,7 +120,7 @@ class L3IPv4QosDscpRewriteTest(api_base_tests.ThriftInterfaceDataPlane):
                                 ip_id=105,
                                 ip_tos=1,
                                 ip_ttl=64)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         exp_pkt = simple_tcp_packet(
                                 eth_dst='00:11:22:33:44:55',

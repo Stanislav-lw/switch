@@ -46,8 +46,8 @@ swports = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 @group('acl')
 class IPAclTest(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print
-        print "Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print()
+        print(("Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"))
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -85,7 +85,7 @@ class IPAclTest(api_base_tests.ThriftInterfaceDataPlane):
                                 ip_src='192.168.0.1',
                                 ip_id=105,
                                 ip_ttl=64)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         exp_pkt = simple_tcp_packet(
                                 eth_dst='00:11:22:33:44:55',
@@ -113,14 +113,14 @@ class IPAclTest(api_base_tests.ThriftInterfaceDataPlane):
                                                          action_params,
                                                          opt_action_params)
         self.client.switcht_api_acl_reference(0, acl, if1)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         # check for absence of packet here!
         try:
             verify_packets(self, exp_pkt, [swports[2]])
-            print 'FAILED - did not expect packet'
+            print('FAILED - did not expect packet')
         except:
-            print 'Success'
+            print('Success')
 
         # ip_acl
         self.client.switcht_api_acl_remove(0, acl, if1)
@@ -147,9 +147,9 @@ class IPAclTest(api_base_tests.ThriftInterfaceDataPlane):
 @group('maxsizes')
 class IPEgressAclTest(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print
+        print()
 
-        print "Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print("Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])")
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -187,7 +187,7 @@ class IPEgressAclTest(api_base_tests.ThriftInterfaceDataPlane):
                                 ip_src='192.168.0.1',
                                 ip_id=105,
                                 ip_ttl=64)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         exp_pkt = simple_tcp_packet(
                                 eth_dst='00:11:22:33:44:55',
@@ -215,14 +215,14 @@ class IPEgressAclTest(api_base_tests.ThriftInterfaceDataPlane):
                                                          action_params,
                                                          opt_action_params)
         self.client.switcht_api_acl_reference(0, acl, if2)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         # check for absence of packet here!
         try:
             verify_packets(self, exp_pkt, [swports[2]])
-            print 'FAILED - did not expect packet'
+            print('FAILED - did not expect packet')
         except:
-            print 'Success'
+            print('Success')
 
         # ip_acl
         self.client.switcht_api_acl_remove(0, acl, if2)
@@ -249,8 +249,8 @@ class IPEgressAclTest(api_base_tests.ThriftInterfaceDataPlane):
 @group('mirror')
 class MirrorAclTest_i2e(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print
-        print "Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print()
+        print("Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])")
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -288,7 +288,7 @@ class MirrorAclTest_i2e(api_base_tests.ThriftInterfaceDataPlane):
                                 ip_src='192.168.0.1',
                                 ip_id=105,
                                 ip_ttl=64)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         exp_pkt = simple_tcp_packet(
                                 eth_dst='00:11:22:33:44:55',
@@ -310,7 +310,7 @@ class MirrorAclTest_i2e(api_base_tests.ThriftInterfaceDataPlane):
 
         # setup a Mirror acl
         # ip acl
-        print "Create Mirror ACL to mirror i2e from 1->4"
+        print("Create Mirror ACL to mirror i2e from 1->4")
         acl = self.client.switcht_api_acl_list_create(0, SWITCH_API_DIRECTION_INGRESS, 0)
         # create kvp to match destination IP
         kvp = []
@@ -326,17 +326,17 @@ class MirrorAclTest_i2e(api_base_tests.ThriftInterfaceDataPlane):
         self.client.switcht_api_acl_reference(0, acl, if1)
 
         # send the test packet(s)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
         verify_packet(self, exp_pkt, swports[2])
         # verify mirrored packet
         verify_packet(self, pkt, swports[4])
         verify_no_other_packets(self)
 
         # delete the mirror sesion
-        print "Delete Mirror ACL"
+        print("Delete Mirror ACL")
         self.client.switcht_api_mirror_session_delete(0, mirror1)
         # clean-up test, make sure pkt is not mirrored after session is deleted
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
         verify_packet(self, exp_pkt, swports[2])
         verify_no_other_packets(self)
         # ip_acl cleanup
@@ -365,7 +365,7 @@ class MirrorAclTest_i2e(api_base_tests.ThriftInterfaceDataPlane):
 class MirrorSessionTest(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
         self.client.switcht_api_init(0)
-        print "create mirror sessions"
+        print("create mirror sessions")
         minfo1 = switcht_mirror_info_t(session_id=1, direction=1,
                                       egress_port=swports[3], mirror_type=0,
                                       session_type=0,
@@ -384,7 +384,7 @@ class MirrorSessionTest(api_base_tests.ThriftInterfaceDataPlane):
                                       cos=0, max_pkt_len=0,
                                       ttl=0, enable=1, nhop_handle=0)
         mirror3 = self.client.switcht_api_mirror_session_create(0, minfo3)
-        print "delete mirror sessions"
+        print("delete mirror sessions")
         self.client.switcht_api_mirror_session_delete(0, mirror1)
         self.client.switcht_api_mirror_session_delete(0, mirror2)
         self.client.switcht_api_mirror_session_delete(0, mirror3)
@@ -397,7 +397,7 @@ class MirrorSessionTest(api_base_tests.ThriftInterfaceDataPlane):
 @group('mirror')
 class MirrorAclTest_e2e(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print "Test e2e Mirror packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print("Test e2e Mirror packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])")
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -453,7 +453,7 @@ class MirrorAclTest_e2e(api_base_tests.ThriftInterfaceDataPlane):
         mirror1 = self.client.switcht_api_mirror_session_create(0, minfo1)
 
         # setup a egress Mirror acl
-        print "Create Egress Mirror ACL to mirror e2e from %d -> %d" % (swports[2], swports[4])
+        print("Create Egress Mirror ACL to mirror e2e from %d -> %d" % (swports[2], swports[4]))
         acl = self.client.switcht_api_acl_list_create(0, SWITCH_API_DIRECTION_EGRESS, 6)
         # create kvp to match egress port and deflect bit
         kvp = []
@@ -472,28 +472,28 @@ class MirrorAclTest_e2e(api_base_tests.ThriftInterfaceDataPlane):
                                                           action_params,
                                                           opt_action_params)
         self.client.switcht_api_acl_reference(0, acl, if2)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
         verify_packet(self, exp_pkt, swports[2])
         # verify mirrored packet
         verify_packet(self, exp_pkt, swports[4])
         verify_no_other_packets(self)
 
         # update the mirror sesion to different port
-        print "Update Egress Mirror Session's egr_port to 3 and test packet again"
+        print("Update Egress Mirror Session's egr_port to 3 and test packet again")
         minfo1 = switcht_mirror_info_t(session_id=1, direction=2,
                                       egress_port=swports[3], mirror_type=0,
                                       session_type=0,
                                       cos=0, max_pkt_len=0,
                                       ttl=0, enable=1, nhop_handle=0)
         self.client.switcht_api_mirror_session_update(0, mirror1, minfo1)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
         verify_packet(self, exp_pkt, swports[2])
         verify_packet(self, exp_pkt, swports[3])
         verify_no_other_packets(self)
-        print "Delete Mirror Session"
+        print("Delete Mirror Session")
         self.client.switcht_api_mirror_session_delete(0, mirror1)
         # clean-up test, make sure pkt is not mirrored after session is deleted
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
         verify_packet(self, exp_pkt, swports[2])
         verify_no_other_packets(self)
         # ip_acl cleanup
@@ -521,7 +521,7 @@ class MirrorAclTest_e2e(api_base_tests.ThriftInterfaceDataPlane):
 @group('mirror')
 class MirrorAclTest_i2e_erspan(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print "Test i2e Erspan Mirror packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print("Test i2e Erspan Mirror packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])")
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -618,7 +618,7 @@ class MirrorAclTest_i2e_erspan(api_base_tests.ThriftInterfaceDataPlane):
                                       ttl=0, enable=1, nhop_handle=nhop1)
         mirror1 = self.client.switcht_api_mirror_session_create(0, minfo1)
 
-        print "Create Mirror ACL to mirror i2e from 1->4"
+        print("Create Mirror ACL to mirror i2e from 1->4")
         acl = self.client.switcht_api_acl_list_create(0, SWITCH_API_DIRECTION_INGRESS, 0)
         # create kvp to match destination IP
         kvp = []
@@ -634,7 +634,7 @@ class MirrorAclTest_i2e_erspan(api_base_tests.ThriftInterfaceDataPlane):
         self.client.switcht_api_acl_reference(0, acl, if1)
 
         # egress interface if4
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
         # verify mirrored packet
         exp_mirrored_pkt = ipv4_erspan_pkt(eth_dst='00:44:44:44:44:44',
                                            eth_src='00:77:66:55:44:33',
@@ -652,10 +652,10 @@ class MirrorAclTest_i2e_erspan(api_base_tests.ThriftInterfaceDataPlane):
         verify_no_other_packets(self)
 
         # delete the mirror sesion
-        print "Delete Egress Mirror Session and test packet again"
+        print("Delete Egress Mirror Session and test packet again")
         self.client.switcht_api_mirror_session_delete(0, mirror1)
         # clean-up test, make sure pkt is not mirrored after session is deleted
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
         verify_packet(self, exp_pkt, swports[2])
         verify_no_other_packets(self)
         # ip_acl cleanup
@@ -691,8 +691,8 @@ class MirrorAclTest_i2e_erspan(api_base_tests.ThriftInterfaceDataPlane):
 @group('acl')
 class IPAclStatsTest(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print
-        print "Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print()
+        print("Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])")
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -772,7 +772,7 @@ class IPAclStatsTest(api_base_tests.ThriftInterfaceDataPlane):
                         ip_id=105,
                         ip_ttl=63,
                         pktlen=pktlen)
-                send_packet(self, swports[1], str(pkt))
+                send_packet(self, swports[1], pkt)
                 verify_packets(self, exp_pkt, [swports[2]])
                 num_bytes += pktlen
                 num_packets += 1
@@ -796,13 +796,13 @@ class IPAclStatsTest(api_base_tests.ThriftInterfaceDataPlane):
                         ip_id=105,
                         ip_ttl=63,
                         pktlen=pktlen)
-                send_packet(self, swports[1], str(pkt))
+                send_packet(self, swports[1], pkt)
                 num_bytes += pktlen
                 num_packets += 1
 
             verify_no_other_packets(self, timeout=30)
             stats = self.client.switcht_api_acl_stats_get(0, counter)
-            print stats
+            print(stats)
             self.assertEqual(stats.num_packets, num_packets)
             self.assertEqual(stats.num_bytes, num_bytes)
 
@@ -834,8 +834,8 @@ class IPAclStatsTest(api_base_tests.ThriftInterfaceDataPlane):
 @group('maxsizes')
 class IPIngressAclRangeTcamTest(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print
-        print "Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print()
+        print("Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])")
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -873,7 +873,7 @@ class IPIngressAclRangeTcamTest(api_base_tests.ThriftInterfaceDataPlane):
                                 ip_src='192.168.0.1',
                                 ip_id=105,
                                 ip_ttl=64)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         exp_pkt = simple_tcp_packet(
                                 eth_dst='00:11:22:33:44:55',
@@ -907,14 +907,14 @@ class IPIngressAclRangeTcamTest(api_base_tests.ThriftInterfaceDataPlane):
                                                          action_params,
                                                          opt_action_params)
         self.client.switcht_api_acl_reference(0, acl, if1)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         # check for absence of packet here!
         try:
             verify_packets(self, exp_pkt, [swports[2]])
-            print 'FAILED - did not expect packet'
+            print('FAILED - did not expect packet')
         except:
-            print 'Success'
+            print('Success')
 
         # ip_acl
         self.client.switcht_api_acl_remove(0, acl, if1)
@@ -942,9 +942,9 @@ class IPIngressAclRangeTcamTest(api_base_tests.ThriftInterfaceDataPlane):
 @group('maxsizes')
 class IPEgressAclRangeTcamTest(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print
+        print()
 
-        print "Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print("Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])")
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -983,7 +983,7 @@ class IPEgressAclRangeTcamTest(api_base_tests.ThriftInterfaceDataPlane):
                                 tcp_dport=1500,
                                 ip_id=105,
                                 ip_ttl=64)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         exp_pkt = simple_tcp_packet(
                                 eth_dst='00:11:22:33:44:55',
@@ -1018,14 +1018,14 @@ class IPEgressAclRangeTcamTest(api_base_tests.ThriftInterfaceDataPlane):
                                                          action_params,
                                                          opt_action_params)
         self.client.switcht_api_acl_reference(0, acl, if2)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         # check for absence of packet here!
         try:
             verify_packets(self, exp_pkt, [swports[2]])
-            print 'FAILED - did not expect packet'
+            print('FAILED - did not expect packet')
         except:
-            print 'Success'
+            print('Success')
 
         # ip_acl
         self.client.switcht_api_acl_remove(0, acl, if2)
@@ -1052,8 +1052,8 @@ class IPEgressAclRangeTcamTest(api_base_tests.ThriftInterfaceDataPlane):
 @group('acl')
 class IPLagIngressAclTest(api_base_tests.ThriftInterfaceDataPlane):
     def runTest(self):
-        print
-        print "Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])"
+        print()
+        print("Sending packet port %d" % swports[1], "  -> port %d" % swports[2], "  (192.168.0.1 -> 10.0.0.1 [id = 101])")
         self.client.switcht_api_init(0)
         vrf = self.client.switcht_api_vrf_create(0, 1)
 
@@ -1095,7 +1095,7 @@ class IPLagIngressAclTest(api_base_tests.ThriftInterfaceDataPlane):
                                 ip_src='192.168.0.1',
                                 ip_id=105,
                                 ip_ttl=64)
-        send_packet(self, swports[1], str(pkt))
+        send_packet(self, swports[1], pkt)
 
         exp_pkt = simple_tcp_packet(
                                 eth_dst='00:11:22:33:44:55',
@@ -1123,8 +1123,8 @@ class IPLagIngressAclTest(api_base_tests.ThriftInterfaceDataPlane):
                                                          action_params,
                                                          opt_action_params)
         self.client.switcht_api_acl_reference(0, acl, if1)
-        send_packet(self, swports[1], str(pkt))
-        send_packet(self, swports[2], str(pkt))
+        send_packet(self, swports[1], pkt)
+        send_packet(self, swports[2], pkt)
         verify_no_other_packets(self, timeout=2)
 
         # ip_acl
