@@ -17,55 +17,48 @@ limitations under the License.
 /*****************************************************************************/
 /* Egress filtering logic                                                    */
 /*****************************************************************************/
+control process_egress_filter(inout metadata meta, inout standard_metadata_t standard_metadata)
+{
 #ifdef EGRESS_FILTER
-header_type egress_filter_metadata_t {
-    fields {
-        ifindex_check : IFINDEX_BIT_WIDTH;     /* src port filter */
-        bd : BD_BIT_WIDTH;                     /* bd for src port filter */
-        inner_bd : BD_BIT_WIDTH;               /* split horizon filter */
+    action egress_filter_check()
+    {
+        meta.egress_filter_metadata.ifindex_check = (bit<16>)meta.ingress_metadata.ifindex ^ (bit<16>)meta.egress_metadata.ifindex;
+        meta.egress_filter_metadata.bd = (bit<16>)meta.ingress_metadata.outer_bd ^ (bit<16>)meta.egress_metadata.outer_bd;
+        meta.egress_filter_metadata.inner_bd = (bit<16>)meta.ingress_metadata.bd ^ (bit<16>)meta.egress_metadata.bd;
     }
-}
-metadata egress_filter_metadata_t egress_filter_metadata;
-
-action egress_filter_check() {
-    bit_xor(egress_filter_metadata.ifindex_check, ingress_metadata.ifindex,
-            egress_metadata.ifindex);
-    bit_xor(egress_filter_metadata.bd, ingress_metadata.outer_bd,
-            egress_metadata.outer_bd);
-    bit_xor(egress_filter_metadata.inner_bd, ingress_metadata.bd,
-            egress_metadata.bd);
-}
-
-action set_egress_filter_drop() {
-    drop();
-}
-
-table egress_filter_drop {
-    actions {
-        set_egress_filter_drop;
+    action set_egress_filter_drop()
+    {
+        mark_to_drop(standard_metadata);
     }
-}
-
-table egress_filter {
-    actions {
-        egress_filter_check;
+    table egress_filter
+    {
+        actions = {
+            egress_filter_check;
+        }
     }
-}
-#endif /* EGRESS_FILTER */
-
-control process_egress_filter {
-#ifdef EGRESS_FILTER
-    apply(egress_filter);
-    if (multicast_metadata.inner_replica == TRUE) {
-        if (((tunnel_metadata.ingress_tunnel_type == INGRESS_TUNNEL_TYPE_NONE) and
-             (tunnel_metadata.egress_tunnel_type == EGRESS_TUNNEL_TYPE_NONE) and
-             (egress_filter_metadata.bd == 0) and
-             (egress_filter_metadata.ifindex_check == 0)) or
-            ((tunnel_metadata.ingress_tunnel_type != INGRESS_TUNNEL_TYPE_NONE) and
-             (tunnel_metadata.egress_tunnel_type != EGRESS_TUNNEL_TYPE_NONE)) and
-             (egress_filter_metadata.inner_bd == 0)) {
-            apply(egress_filter_drop);
+    table egress_filter_drop
+    {
+        actions = {
+            set_egress_filter_drop;
         }
     }
 #endif /* EGRESS_FILTER */
+
+    apply
+    {
+#ifdef EGRESS_FILTER
+        egress_filter.apply();
+        if (meta.multicast_metadata.inner_replica == TRUE) {
+            if (((meta.tunnel_metadata.ingress_tunnel_type == INGRESS_TUNNEL_TYPE_NONE) &&
+                 (meta.tunnel_metadata.egress_tunnel_type == EGRESS_TUNNEL_TYPE_NONE) &&
+                 (meta.egress_filter_metadata.bd == 16w0) &&
+                 (meta.egress_filter_metadata.ifindex_check == 16w0)) ||
+                ((meta.tunnel_metadata.ingress_tunnel_type != INGRESS_TUNNEL_TYPE_NONE) &&
+                 (meta.tunnel_metadata.egress_tunnel_type != EGRESS_TUNNEL_TYPE_NONE)) &&
+                 (meta.egress_filter_metadata.inner_bd == 16w0)) {
+                egress_filter_drop.apply();
+            }
+        }
+#endif /* EGRESS_FILTER */
+    }
 }

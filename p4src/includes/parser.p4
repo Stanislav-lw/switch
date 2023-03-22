@@ -601,7 +601,7 @@ parser parserImpl(packet_in packet,
 #endif /* INT_EP_ENABLE */
             default: accept;
             // never transition to the following state
-            default: parse_all_int_meta_value_heders;
+            default: parse_all_int_meta_value_headers;
         }
     }
 
@@ -617,7 +617,7 @@ parser parserImpl(packet_in packet,
     }
 #endif /* INT_EP_ENABLE */
 
-    state parse_all_int_meta_value_heders 
+    state parse_all_int_meta_value_headers 
     {
         // bogus state.. just extract all possible int headers in the
         // correct order to build

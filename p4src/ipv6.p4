@@ -17,163 +17,159 @@ limitations under the License.
 /*
  * IPv6 processing
  */
-
-/*
- * IPv6 Metadata
- */
-header_type ipv6_metadata_t {
-    fields {
-        lkp_ipv6_sa : 128;                     /* ipv6 source address */
-        lkp_ipv6_da : 128;                     /* ipv6 destination address*/
-
-        ipv6_unicast_enabled : 1;              /* is ipv6 unicast routing enabled on BD */
-        ipv6_src_is_link_local : 1;            /* source is link local address */
-        ipv6_urpf_mode : 2;                    /* 0: none, 1: strict, 3: loose */
-    }
-}
-metadata ipv6_metadata_t ipv6_metadata;
-
-#if !defined(L3_DISABLE) && !defined(IPV6_DISABLE)
 /*****************************************************************************/
 /* Validate outer IPv6 header                                                */
 /*****************************************************************************/
-action set_valid_outer_ipv6_packet() {
-    modify_field(l3_metadata.lkp_ip_type, IPTYPE_IPV6);
-    modify_field(l3_metadata.lkp_dscp, ipv6.trafficClass);
-    modify_field(l3_metadata.lkp_ip_version, ipv6.version);
-}
-
-action set_malformed_outer_ipv6_packet(drop_reason) {
-    modify_field(ingress_metadata.drop_flag, TRUE);
-    modify_field(ingress_metadata.drop_reason, drop_reason);
-}
-
-/*
- * Table: Validate ipv6 packet
- * Lookup: Ingress
- * Validate and extract ipv6 header
- */
-table validate_outer_ipv6_packet {
-    reads {
-        ipv6.version : ternary;
-        ipv6.hopLimit : ternary;
-        ipv6.srcAddr mask 0xFFFF0000000000000000000000000000 : ternary;
-    }
-    actions {
-        set_valid_outer_ipv6_packet;
-        set_malformed_outer_ipv6_packet;
-    }
-    size : VALIDATE_PACKET_TABLE_SIZE;
-}
-#endif /* L3_DISABLE && IPV6_DISABLE */
-
-control validate_outer_ipv6_header {
+control validate_outer_ipv6_header(inout headers_t headers, inout metadata meta)
+{
 #if !defined(L3_DISABLE) && !defined(IPV6_DISABLE)
-    apply(validate_outer_ipv6_packet);
+    action set_valid_outer_ipv6_packet()
+    {
+        meta.l3_metadata.lkp_ip_type = IPTYPE_IPV6;
+        meta.l3_metadata.lkp_dscp = (bit<8>)headers.ipv6.trafficClass;
+        meta.l3_metadata.lkp_ip_version = (bit<4>)headers.ipv6.version;
+    }
+    action set_malformed_outer_ipv6_packet(bit<8> drop_reason)
+    {
+        meta.ingress_metadata.drop_flag = TRUE;
+        meta.ingress_metadata.drop_reason = drop_reason;
+    }
+    table validate_outer_ipv6_packet
+    {
+        key = {
+            headers.ipv6.version         : ternary;
+            headers.ipv6.hopLimit        : ternary;
+            headers.ipv6.srcAddr[127:112]: ternary;
+        }
+        actions = {
+            set_valid_outer_ipv6_packet;
+            set_malformed_outer_ipv6_packet;
+        }
+        size = VALIDATE_PACKET_TABLE_SIZE;
+    }
 #endif /* L3_DISABLE && IPV6_DISABLE */
+ 
+    apply
+    {
+#if !defined(L3_DISABLE) && !defined(IPV6_DISABLE)
+        validate_outer_ipv6_packet.apply();
+#endif /* L3_DISABLE && IPV6_DISABLE */
+    }
 }
 
-#if !defined(L3_DISABLE) && !defined(IPV6_DISABLE)
 /*****************************************************************************/
 /* IPv6 FIB lookup                                                           */
 /*****************************************************************************/
-/*
- * Actions are defined in l3.p4 since they are
- * common for both ipv4 and ipv6
- */
-
-/*
- * Table: Ipv6 LPM Lookup
- * Lookup: Ingress
- * Ipv6 route lookup for longest prefix match entries
- */
-table ipv6_fib_lpm {
-    reads {
-        l3_metadata.vrf : exact;
-        ipv6_metadata.lkp_ipv6_da : lpm;
-    }
-    actions {
-        on_miss;
-        fib_hit_nexthop;
-        fib_hit_ecmp;
-    }
-    size : IPV6_LPM_TABLE_SIZE;
-}
-
-/*
- * Table: Ipv6 Host Lookup
- * Lookup: Ingress
- * Ipv6 route lookup for /128 entries
- */
-table ipv6_fib {
-    reads {
-        l3_metadata.vrf : exact;
-        ipv6_metadata.lkp_ipv6_da : exact;
-    }
-    actions {
-        on_miss;
-        fib_hit_nexthop;
-        fib_hit_ecmp;
-    }
-    size : IPV6_HOST_TABLE_SIZE;
-}
-#endif /* L3_DISABLE && IPV6_DISABLE */
-
-control process_ipv6_fib {
+control process_ipv6_fib(inout metadata meta)
+{
 #if !defined(L3_DISABLE) && !defined(IPV6_DISABLE)
-    /* fib lookup */
-    apply(ipv6_fib) {
-        on_miss {
-            apply(ipv6_fib_lpm);
+    action on_miss() {}
+    action fib_hit_nexthop(bit<16> nexthop_index)
+    {
+        meta.l3_metadata.fib_hit = TRUE;
+        meta.l3_metadata.fib_nexthop = nexthop_index;
+        meta.l3_metadata.fib_nexthop_type = NEXTHOP_TYPE_SIMPLE;
+    }
+    action fib_hit_ecmp(bit<16> ecmp_index)
+    {
+        meta.l3_metadata.fib_hit = TRUE;
+        meta.l3_metadata.fib_nexthop = ecmp_index;
+        meta.l3_metadata.fib_nexthop_type = NEXTHOP_TYPE_ECMP;
+    }
+    table ipv6_fib
+    {
+        key = {
+            meta.l3_metadata.vrf          : exact;
+            meta.ipv6_metadata.lkp_ipv6_da: exact;
         }
+        actions = {
+            on_miss;
+            fib_hit_nexthop;
+            fib_hit_ecmp;
+        }
+        size = IPV6_HOST_TABLE_SIZE;
+    }
+    table ipv6_fib_lpm
+    {
+        key = {
+            meta.l3_metadata.vrf          : exact;
+            meta.ipv6_metadata.lkp_ipv6_da: lpm;
+        }
+        actions = {
+            on_miss;
+            fib_hit_nexthop;
+            fib_hit_ecmp;
+        }
+        size = IPV6_LPM_TABLE_SIZE;
     }
 #endif /* L3_DISABLE && IPV6_DISABLE */
-}
 
-#if !defined(L3_DISABLE) && !defined(IPV6_DISABLE) && !defined(URPF_DISABLE)
+    apply 
+    {
+#if !defined(L3_DISABLE) && !defined(IPV6_DISABLE)
+        /* fib lookup */
+        switch (ipv6_fib.apply().action_run) {
+            on_miss: {
+                ipv6_fib_lpm.apply();
+            }
+        }
+#endif /* L3_DISABLE && IPV6_DISABLE */
+    }
+}
 /*****************************************************************************/
 /* IPv6 uRPF lookup                                                          */
 /*****************************************************************************/
-action ipv6_urpf_hit(urpf_bd_group) {
-    modify_field(l3_metadata.urpf_hit, TRUE);
-    modify_field(l3_metadata.urpf_bd_group, urpf_bd_group);
-    modify_field(l3_metadata.urpf_mode, ipv6_metadata.ipv6_urpf_mode);
-}
-
-table ipv6_urpf_lpm {
-    reads {
-        l3_metadata.vrf : exact;
-        ipv6_metadata.lkp_ipv6_sa : lpm;
+control process_ipv6_urpf(inout metadata meta)
+{
+#if !defined(L3_DISABLE) && !defined(IPV6_DISABLE) && !defined(URPF_DISABLE)
+    action on_miss() {}
+    action ipv6_urpf_hit(bit<16> urpf_bd_group)
+    {
+        meta.l3_metadata.urpf_hit = TRUE;
+        meta.l3_metadata.urpf_bd_group = urpf_bd_group;
+        meta.l3_metadata.urpf_mode = (bit<2>)meta.ipv6_metadata.ipv6_urpf_mode;
     }
-    actions {
-        ipv6_urpf_hit;
-        urpf_miss;
+    action urpf_miss()
+    {
+        meta.l3_metadata.urpf_check_fail = TRUE;
     }
-    size : IPV6_LPM_TABLE_SIZE;
-}
-
-table ipv6_urpf {
-    reads {
-        l3_metadata.vrf : exact;
-        ipv6_metadata.lkp_ipv6_sa : exact;
+    table ipv6_urpf
+    {
+        key = {
+            meta.l3_metadata.vrf          : exact;
+            meta.ipv6_metadata.lkp_ipv6_sa: exact;
+        }
+        actions = {
+            on_miss;
+            ipv6_urpf_hit;
+        }
+        size = IPV6_HOST_TABLE_SIZE;
     }
-    actions {
-        on_miss;
-        ipv6_urpf_hit;
+    table ipv6_urpf_lpm
+    {
+        key = {
+            meta.l3_metadata.vrf          : exact;
+            meta.ipv6_metadata.lkp_ipv6_sa: lpm;
+        }
+        actions = {
+            ipv6_urpf_hit;
+            urpf_miss;
+        }
+        size = IPV6_LPM_TABLE_SIZE;
     }
-    size : IPV6_HOST_TABLE_SIZE;
-}
 #endif /* L3_DISABLE && IPV6_DISABLE && URPF_DISABLE */
 
-control process_ipv6_urpf {
+    apply
+    {
 #if !defined(L3_DISABLE) && !defined(IPV6_DISABLE) && !defined(URPF_DISABLE)
-    /* unicast rpf lookup */
-    if (ipv6_metadata.ipv6_urpf_mode != URPF_MODE_NONE) {
-        apply(ipv6_urpf) {
-            on_miss {
-                apply(ipv6_urpf_lpm);
+        /* unicast rpf lookup */
+        if (meta.ipv6_metadata.ipv6_urpf_mode != URPF_MODE_NONE) {
+            switch (ipv6_urpf.apply().action_run) {
+                on_miss: {
+                    ipv6_urpf_lpm.apply();
+                }
             }
         }
-    }
 #endif /* L3_DISABLE && IPV6_DISABLE && URPF_DISABLE */
+    }
 }

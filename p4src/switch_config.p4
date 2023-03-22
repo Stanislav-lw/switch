@@ -17,35 +17,35 @@ limitations under the License.
 /*
  * System global parameters
  */
-
-action set_config_parameters(enable_dod) {
-    /* read system config parameters and store them in metadata
-     * or take appropriate action
-     */
-    deflect_on_drop(enable_dod);
-
-    /* initialization */
-    modify_field(i2e_metadata.ingress_tstamp, _ingress_global_tstamp_);
-    modify_field(ingress_metadata.ingress_port, standard_metadata.ingress_port);
-    modify_field(l2_metadata.same_if_check, ingress_metadata.ifindex);
-    modify_field(standard_metadata.egress_spec, INVALID_PORT_ID);
-#ifdef SFLOW_ENABLE
-    /* use 31 bit random number generator and detect overflow into upper half
-     * to decide to take a sample
-     */
-    modify_field_rng_uniform(ingress_metadata.sflow_take_sample,
-                                0, 0x7FFFFFFF);
-#endif
-}
-
-table switch_config_params {
-    actions {
-        set_config_parameters;
+control process_global_params(inout metadata meta,
+                              inout standard_metadata_t standard_metadata)
+{
+    action deflect_on_drop(bit<1> enable_dod) 
+    {
+        meta.intrinsic_metadata.deflect_on_drop = enable_dod;
     }
-    size : 1;
-}
+    action set_config_parameters()
+    {
+        /* read system config parameters and store them in metadata
+         * or take appropriate action
+         */
+        deflect_on_drop(1w0);
+        /* initialization */
+        meta.i2e_metadata.ingress_tstamp = (bit<32>)meta.intrinsic_metadata.ingress_global_timestamp;
+        meta.ingress_metadata.ingress_port = (bit<9>)standard_metadata.ingress_port;
+        meta.l2_metadata.same_if_check = (bit<16>)meta.ingress_metadata.ifindex;
+        standard_metadata.egress_spec = INVALID_PORT_ID;
+#ifdef SFLOW_ENABLE
+        /* use 31 bit random number generator and detect overflow into upper half
+         * to decide to take a sample
+         */
+        random(meta.ingress_metadata.sflow_take_sample, 32w0, 32w0x7fffffff);
+#endif
+    }
 
-control process_global_params {
     /* set up global controls/parameters */
-    apply(switch_config_params);
+    apply
+    {
+        set_config_parameters();
+    }
 }

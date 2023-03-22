@@ -17,32 +17,44 @@ limitations under the License.
 /*
  * Mirror processing
  */
-
-action set_mirror_nhop(nhop_idx) {
-    modify_field(l3_metadata.nexthop_index, nhop_idx);
-}
-
-action set_mirror_bd(bd) {
-    modify_field(egress_metadata.bd, bd);
-}
-
-table mirror {
-    reads {
-        i2e_metadata.mirror_session_id : exact;
-    }
-    actions {
-        nop;
-        set_mirror_nhop;
-        set_mirror_bd;
-#ifdef SFLOW_ENABLE
-        sflow_pkt_to_cpu;
-#endif
-    }
-    size : MIRROR_SESSIONS_TABLE_SIZE;
-}
-
-control process_mirroring {
+control process_mirroring(inout headers_t headers, inout metadata meta)
+{
 #ifndef MIRROR_DISABLE
-    apply(mirror);
+    action nop() {}
+    action set_mirror_nhop(bit<16> nhop_idx)
+    {
+        meta.l3_metadata.nexthop_index = nhop_idx;
+    }
+    action set_mirror_bd(bit<16> bd)
+    {
+        meta.egress_metadata.bd = bd;
+    }
+    action sflow_pkt_to_cpu(bit<16> reason_code)
+    {
+        headers.fabric_header_sflow.setValid();
+        headers.fabric_header_sflow.sflow_session_id = (bit<16>)meta.sflow_metadata.sflow_session_id;
+        headers.fabric_header_sflow.sflow_egress_ifindex = (bit<16>)meta.ingress_metadata.egress_ifindex;
+        meta.fabric_metadata.reason_code = reason_code;
+    }
+    table mirror
+    {
+        key = {
+            meta.i2e_metadata.mirror_session_id: exact;
+        }
+        actions = {
+            nop;
+            set_mirror_nhop;
+            set_mirror_bd;
+            sflow_pkt_to_cpu;
+        }
+        size = MIRROR_SESSIONS_TABLE_SIZE;
+    }
 #endif /* MIRROR_DISABLE */
+
+    apply
+    {
+#ifndef MIRROR_DISABLE
+        mirror.apply();
+#endif /* MIRROR_DISABLE */
+    }
 }

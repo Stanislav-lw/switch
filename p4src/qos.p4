@@ -1,163 +1,155 @@
-
-/*****************************************************************************/
-/* Qos Processing                                                            */
-/*****************************************************************************/
-
-header_type qos_metadata_t {
-    fields {
-        ingress_qos_group: 5;
-        tc_qos_group: 5;
-        egress_qos_group: 5;
-        lkp_tc: 8;
-        trust_dscp: 1;
-        trust_pcp: 1;
-    }
-}
-
-metadata qos_metadata_t qos_metadata;
-
 /*****************************************************************************/
 /* Ingress QOS Map                                                           */
 /*****************************************************************************/
+control process_ingress_qos_map(inout metadata meta)
+{
 #ifndef QOS_DISABLE
-action set_ingress_tc_and_color(tc, color) {
-    modify_field(qos_metadata.lkp_tc, tc);
-    modify_field(meter_metadata.packet_color, color);
-}
-
-action set_ingress_tc(tc) {
-    modify_field(qos_metadata.lkp_tc, tc);
-}
-
-action set_ingress_color(color) {
-    modify_field(meter_metadata.packet_color, color);
-}
-
-table ingress_qos_map_dscp {
-    reads {
-        qos_metadata.ingress_qos_group: ternary;
-        l3_metadata.lkp_dscp: ternary;
+    action nop() {}
+    action set_ingress_tc(bit<8> tc)
+    {
+        meta.qos_metadata.lkp_tc = tc;
     }
-
-    actions {
-        nop;
-        set_ingress_tc;
-        set_ingress_color;
-        set_ingress_tc_and_color;
+    action set_ingress_color(bit<2> color)
+    {
+        meta.meter_metadata.packet_color = color;
     }
-
-    size: DSCP_TO_TC_AND_COLOR_TABLE_SIZE;
-}
-
-table ingress_qos_map_pcp {
-    reads {
-        qos_metadata.ingress_qos_group: ternary;
-        l2_metadata.lkp_pcp: ternary;
+    action set_ingress_tc_and_color(bit<8> tc, bit<2> color)
+    {
+        meta.qos_metadata.lkp_tc = tc;
+        meta.meter_metadata.packet_color = color;
     }
-
-    actions {
-        nop;
-        set_ingress_tc;
-        set_ingress_color;
-        set_ingress_tc_and_color;
+    table ingress_qos_map_dscp
+    {
+        actions = {
+            nop;
+            set_ingress_tc;
+            set_ingress_color;
+            set_ingress_tc_and_color;
+        }
+        key = {
+            meta.qos_metadata.ingress_qos_group : ternary;
+            meta.l3_metadata.lkp_dscp           : ternary;
+        }
+        size = DSCP_TO_TC_AND_COLOR_TABLE_SIZE;
     }
-
-    size: PCP_TO_TC_AND_COLOR_TABLE_SIZE;
-}
-
+    table ingress_qos_map_pcp
+    {
+        actions = {
+            nop;
+            set_ingress_tc;
+            set_ingress_color;
+            set_ingress_tc_and_color;
+        }
+        key = {
+            meta.qos_metadata.ingress_qos_group : ternary;
+            meta.l2_metadata.lkp_pcp            : ternary;
+        }
+        size = PCP_TO_TC_AND_COLOR_TABLE_SIZE;
+    }
 #endif /* QOS_DISABLE */
 
-control process_ingress_qos_map {
+    apply
+    {
 #ifndef QOS_DISABLE
-    if (DO_LOOKUP(QOS)) {
-        if (qos_metadata.trust_dscp == TRUE) {
-            apply(ingress_qos_map_dscp);
-        } else {
-            if (qos_metadata.trust_pcp == TRUE) {
-                apply(ingress_qos_map_pcp);
+        if (DO_LOOKUP(QOS)) {
+            if (meta.qos_metadata.trust_dscp == TRUE) {
+                ingress_qos_map_dscp.apply();
+            } else {
+                if (meta.qos_metadata.trust_pcp == TRUE) {
+                    ingress_qos_map_pcp.apply();
+                }
             }
         }
-    }
 #endif /* QOS_DISABLE */
+    }
 }
-
 
 /*****************************************************************************/
 /* Queuing                                                                   */
 /*****************************************************************************/
-
+control process_traffic_class(inout metadata meta)
+{
 #ifndef QOS_DISABLE
-action set_icos(icos) {
-    modify_field(intrinsic_metadata.ingress_cos, icos); 
-}
-
-action set_queue(qid) {
-    modify_field(intrinsic_metadata.qid, qid); 
-}
-
-action set_icos_and_queue(icos, qid) {
-    modify_field(intrinsic_metadata.ingress_cos, icos); 
-    modify_field(intrinsic_metadata.qid, qid); 
-}
-
-table traffic_class {
-    reads {
-        qos_metadata.tc_qos_group: ternary;
-        qos_metadata.lkp_tc: ternary;
+    action nop() {}
+    action set_icos(bit<3> icos)
+    {
+        meta.intrinsic_metadata.ingress_cos = icos;
     }
-
-    actions {
-        nop;
-        set_icos;
-        set_queue;
-        set_icos_and_queue;
+    action set_queue(bit<5> qid)
+    {
+        meta.intrinsic_metadata.qid = qid;
     }
-    size: QUEUE_TABLE_SIZE;
-}
+    action set_icos_and_queue(bit<3> icos, bit<5> qid)
+    {
+        meta.intrinsic_metadata.ingress_cos = icos;
+        meta.intrinsic_metadata.qid = qid;
+    }
+    table traffic_class 
+    {
+        actions = {
+            nop;
+            set_icos;
+            set_queue;
+            set_icos_and_queue;
+        }
+        key = {
+            meta.qos_metadata.tc_qos_group: ternary;
+            meta.qos_metadata.lkp_tc      : ternary;
+        }
+        size = QUEUE_TABLE_SIZE;
+    }
 #endif /* QOS_DISABLE */
 
-control process_traffic_class{
+    apply
+    {
 #ifndef QOS_DISABLE
-    apply(traffic_class);
+        traffic_class.apply();
 #endif /* QOS_DISABLE */
+    }
 }
 
 /*****************************************************************************/
 /* Egress QOS Map                                                            */
 /*****************************************************************************/
+control process_egress_qos_map(inout metadata meta)
+{
 #ifndef QOS_DISABLE
-action set_mpls_exp_marking(exp) {
-    modify_field(l3_metadata.lkp_dscp, exp);
-}
-
-action set_ip_dscp_marking(dscp) {
-    modify_field(l3_metadata.lkp_dscp, dscp);
-}
-
-action set_vlan_pcp_marking(pcp) {
-    modify_field(l2_metadata.lkp_pcp, pcp);
-}
-
-table egress_qos_map {
-    reads {
-        qos_metadata.egress_qos_group: ternary;
-        qos_metadata.lkp_tc: ternary;
-        //meter_metadata.packet_color : ternary;
+    action nop() {}
+    action set_mpls_exp_marking(bit<8> exp) 
+    {
+        meta.l3_metadata.lkp_dscp = exp;
     }
-    actions {
-        nop;
-        set_mpls_exp_marking;
-        set_ip_dscp_marking;
-        set_vlan_pcp_marking;
+    action set_ip_dscp_marking(bit<8> dscp)
+    {
+        meta.l3_metadata.lkp_dscp = dscp;
     }
-    size: EGRESS_QOS_MAP_TABLE_SIZE;
-}
+    action set_vlan_pcp_marking(bit<3> pcp)
+    {
+        meta.l2_metadata.lkp_pcp = pcp;
+    }
+    table egress_qos_map
+    {
+        key = {
+            meta.qos_metadata.egress_qos_group  : ternary;
+            meta.qos_metadata.lkp_tc            : ternary;
+            meta.meter_metadata.packet_color    : ternary;
+        }
+        actions = {
+            nop;
+            set_mpls_exp_marking;
+            set_ip_dscp_marking;
+            set_vlan_pcp_marking;
+        }
+        size = EGRESS_QOS_MAP_TABLE_SIZE;
+    }
 #endif /* QOS_DISABLE */
 
-control process_egress_qos_map {
+    apply
+    {
 #ifndef QOS_DISABLE
-    if (DO_LOOKUP(QOS)) {
-        apply(egress_qos_map);
-    }
+        if (DO_LOOKUP(QOS)) {
+            egress_qos_map.apply();
+        }
 #endif /* QOS_DISABLE */
+    }
 }

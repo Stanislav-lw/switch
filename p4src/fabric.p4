@@ -14,329 +14,286 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/*
- * Fabric processing for multi-device system
- */
-
-header_type fabric_metadata_t {
-    fields {
-        packetType : 3;
-        fabric_header_present : 1;
-        reason_code : 16;              /* cpu reason code */
-
-#ifdef FABRIC_ENABLE
-        dst_device : 8;                /* destination device id */
-        dst_port : 16;                 /* destination port id */
-#endif /* FABRIC_ENABLE */
-    }
-}
-
-metadata fabric_metadata_t fabric_metadata;
-
-/*****************************************************************************/
-/* Fabric header - destination lookup                                        */
-/*****************************************************************************/
-action terminate_cpu_packet() {
-    modify_field(standard_metadata.egress_spec,
-                 fabric_header.dstPortOrGroup);
-    modify_field(egress_metadata.bypass, fabric_header_cpu.txBypass);
-    modify_field(intrinsic_metadata.mcast_grp, fabric_header_cpu.mcast_grp);
-
-    modify_field(ethernet.etherType, fabric_payload_header.etherType);
-    remove_header(fabric_header);
-    remove_header(fabric_header_cpu);
-    remove_header(fabric_payload_header);
-}
-
-#ifdef FABRIC_ENABLE
-action terminate_fabric_unicast_packet() {
-    modify_field(standard_metadata.egress_spec,
-                 fabric_header.dstPortOrGroup);
-
-    modify_field(tunnel_metadata.tunnel_terminate,
-                 fabric_header_unicast.tunnelTerminate);
-    modify_field(tunnel_metadata.ingress_tunnel_type,
-                 fabric_header_unicast.ingressTunnelType);
-    modify_field(l3_metadata.nexthop_index,
-                 fabric_header_unicast.nexthopIndex);
-    modify_field(l3_metadata.routed, fabric_header_unicast.routed);
-    modify_field(l3_metadata.outer_routed,
-                 fabric_header_unicast.outerRouted);
-
-    modify_field(ethernet.etherType, fabric_payload_header.etherType);
-    remove_header(fabric_header);
-    remove_header(fabric_header_unicast);
-    remove_header(fabric_payload_header);
-}
-
-action switch_fabric_unicast_packet() {
-    modify_field(fabric_metadata.fabric_header_present, TRUE);
-    modify_field(fabric_metadata.dst_device, fabric_header.dstDevice);
-    modify_field(fabric_metadata.dst_port, fabric_header.dstPortOrGroup);
-}
-
-#ifndef MULTICAST_DISABLE
-action terminate_fabric_multicast_packet() {
-    modify_field(tunnel_metadata.tunnel_terminate,
-                 fabric_header_multicast.tunnelTerminate);
-    modify_field(tunnel_metadata.ingress_tunnel_type,
-                 fabric_header_multicast.ingressTunnelType);
-    modify_field(l3_metadata.nexthop_index, 0);
-    modify_field(l3_metadata.routed, fabric_header_multicast.routed);
-    modify_field(l3_metadata.outer_routed,
-                 fabric_header_multicast.outerRouted);
-
-    modify_field(intrinsic_metadata.mcast_grp,
-                 fabric_header_multicast.mcastGrp);
-
-    modify_field(ethernet.etherType, fabric_payload_header.etherType);
-    remove_header(fabric_header);
-    remove_header(fabric_header_multicast);
-    remove_header(fabric_payload_header);
-}
-
-action switch_fabric_multicast_packet() {
-    modify_field(fabric_metadata.fabric_header_present, TRUE);
-    modify_field(intrinsic_metadata.mcast_grp, fabric_header.dstPortOrGroup);
-}
-#endif /* MULTICAST_DISABLE */
-#endif /* FABRIC_ENABLE */
-
-table fabric_ingress_dst_lkp {
-    reads {
-        fabric_header.dstDevice : exact;
-    }
-    actions {
-        nop;
-        terminate_cpu_packet;
-#ifdef FABRIC_ENABLE
-        switch_fabric_unicast_packet;
-        terminate_fabric_unicast_packet;
-#ifndef MULTICAST_DISABLE
-        switch_fabric_multicast_packet;
-        terminate_fabric_multicast_packet;
-#endif /* MULTICAST_DISABLE */
-#endif /* FABRIC_ENABLE */
-    }
-}
-
-/*****************************************************************************/
-/* Fabric header - source lookup                                             */
-/*****************************************************************************/
-#ifdef FABRIC_ENABLE
-action set_ingress_ifindex_properties() {
-}
-
-table fabric_ingress_src_lkp {
-    reads {
-        fabric_header_multicast.ingressIfindex : exact;
-    }
-    actions {
-        nop;
-        set_ingress_ifindex_properties;
-    }
-    size : 1024;
-}
-#endif /* FABRIC_ENABLE */
-
-action non_ip_over_fabric() {
-    modify_field(l2_metadata.lkp_mac_sa, ethernet.srcAddr);
-    modify_field(l2_metadata.lkp_mac_da, ethernet.dstAddr);
-    modify_field(l2_metadata.lkp_mac_type, ethernet.etherType);
-}
-
-action ipv4_over_fabric() {
-    modify_field(l2_metadata.lkp_mac_sa, ethernet.srcAddr);
-    modify_field(l2_metadata.lkp_mac_da, ethernet.dstAddr);
-    modify_field(ipv4_metadata.lkp_ipv4_sa, ipv4.srcAddr);
-    modify_field(ipv4_metadata.lkp_ipv4_da, ipv4.dstAddr);
-    modify_field(l3_metadata.lkp_ip_proto, ipv4.protocol);
-    modify_field(l3_metadata.lkp_l4_sport, l3_metadata.lkp_outer_l4_sport);
-    modify_field(l3_metadata.lkp_l4_dport, l3_metadata.lkp_outer_l4_dport);
-}
-
-action ipv6_over_fabric() {
-    modify_field(l2_metadata.lkp_mac_sa, ethernet.srcAddr);
-    modify_field(l2_metadata.lkp_mac_da, ethernet.dstAddr);
-    modify_field(ipv6_metadata.lkp_ipv6_sa, ipv6.srcAddr);
-    modify_field(ipv6_metadata.lkp_ipv6_da, ipv6.dstAddr);
-    modify_field(l3_metadata.lkp_ip_proto, ipv6.nextHdr);
-    modify_field(l3_metadata.lkp_l4_sport, l3_metadata.lkp_outer_l4_sport);
-    modify_field(l3_metadata.lkp_l4_dport, l3_metadata.lkp_outer_l4_dport);
-}
-
-table native_packet_over_fabric {
-    reads {
-        ipv4 : valid;
-        ipv6 : valid;
-    }
-    actions {
-        non_ip_over_fabric;
-        ipv4_over_fabric;
-#ifndef IPV6_DISABLE
-        ipv6_over_fabric;
-#endif /* IPV6_DISABLE */
-    }
-    size : 1024;
-}
-
 /*****************************************************************************/
 /* Ingress fabric header processing                                          */
 /*****************************************************************************/
-control process_ingress_fabric {
-    if (ingress_metadata.port_type != PORT_TYPE_NORMAL) {
-        apply(fabric_ingress_dst_lkp);
+control process_ingress_fabric(inout headers_t headers,
+                               inout metadata meta,
+                               inout standard_metadata_t standard_metadata)
+{
+    action nop() {}
+    action terminate_cpu_packet()
+    {
+        standard_metadata.egress_spec = (bit<9>)headers.fabric_header.dstPortOrGroup;
+        meta.egress_metadata.bypass = (bit<1>)headers.fabric_header_cpu.txBypass;
+        meta.intrinsic_metadata.mcast_grp = (bit<16>)headers.fabric_header_cpu.mcast_grp;
+
+        headers.ethernet.etherType = (bit<16>)headers.fabric_payload_header.etherType;
+        headers.fabric_header.setInvalid();
+        headers.fabric_header_cpu.setInvalid();
+        headers.fabric_payload_header.setInvalid();
+    }
 #ifdef FABRIC_ENABLE
-        if (ingress_metadata.port_type == PORT_TYPE_FABRIC) {
-            if (valid(fabric_header_multicast)) {
-                apply(fabric_ingress_src_lkp);
-            }
-            if (tunnel_metadata.tunnel_terminate == FALSE) {
-                apply(native_packet_over_fabric);
-            }
-        }
+    action switch_fabric_unicast_packet()
+    {
+        meta.fabric_metadata.fabric_header_present = TRUE;
+        meta.fabric_metadata.dst_device = (bit<8>)headers.fabric_header.dstDevice;
+        meta.fabric_metadata.dst_port = (bit<16>)headers.fabric_header.dstPortOrGroup;
+    }
+    action terminate_fabric_unicast_packet()
+    {
+        standard_metadata.egress_spec = (bit<9>)headers.fabric_header.dstPortOrGroup;
+
+        meta.tunnel_metadata.tunnel_terminate = (bit<1>)headers.fabric_header_unicast.tunnelTerminate;
+        meta.tunnel_metadata.ingress_tunnel_type = (bit<5>)headers.fabric_header_unicast.ingressTunnelType;
+        meta.l3_metadata.nexthop_index = (bit<16>)headers.fabric_header_unicast.nexthopIndex;
+        meta.l3_metadata.routed = (bit<1>)headers.fabric_header_unicast.routed;
+        meta.l3_metadata.outer_routed = (bit<1>)headers.fabric_header_unicast.outerRouted;
+        headers.ethernet.etherType = (bit<16>)headers.fabric_payload_header.etherType;
+
+        headers.fabric_header.setInvalid();
+        headers.fabric_header_unicast.setInvalid();
+        headers.fabric_payload_header.setInvalid();
+    }
+#ifndef MULTICAST_DISABLE
+    action switch_fabric_multicast_packet()
+    {
+        meta.fabric_metadata.fabric_header_present = TRUE;
+        meta.intrinsic_metadata.mcast_grp = (bit<16>)headers.fabric_header.dstPortOrGroup;
+    }
+    action terminate_fabric_multicast_packet()
+    {
+        meta.tunnel_metadata.tunnel_terminate = (bit<1>)headers.fabric_header_multicast.tunnelTerminate;
+        meta.tunnel_metadata.ingress_tunnel_type = (bit<5>)headers.fabric_header_multicast.ingressTunnelType;
+        meta.l3_metadata.nexthop_index = 16w0;
+        meta.l3_metadata.routed = (bit<1>)headers.fabric_header_multicast.routed;
+        meta.l3_metadata.outer_routed = (bit<1>)headers.fabric_header_multicast.outerRouted;
+
+        meta.intrinsic_metadata.mcast_grp = (bit<16>)headers.fabric_header_multicast.mcastGrp;
+
+        headers.ethernet.etherType = (bit<16>)headers.fabric_payload_header.etherType;
+        headers.fabric_header.setInvalid();
+        headers.fabric_header_multicast.setInvalid();
+        headers.fabric_payload_header.setInvalid();
+    }
+#endif /* MULTICAST_DISABLE */
 #endif /* FABRIC_ENABLE */
+    table fabric_ingress_dst_lkp
+    {
+        key = {
+            headers.fabric_header.dstDevice: exact;
+        }
+        actions = {
+            nop;
+            terminate_cpu_packet;
+#ifdef FABRIC_ENABLE
+            switch_fabric_unicast_packet;
+            terminate_fabric_unicast_packet;
+#ifndef MULTICAST_DISABLE
+            switch_fabric_multicast_packet;
+            terminate_fabric_multicast_packet;
+#endif /* MULTICAST_DISABLE */
+#endif /* FABRIC_ENABLE */
+        }
+    }
+#ifdef FABRIC_ENABLE
+    action set_ingress_ifindex_properties() {}
+    table fabric_ingress_src_lkp
+    {
+        key = {
+            headers.fabric_header_multicast.ingressIfindex: exact;
+        }
+        actions = {
+            nop;
+            set_ingress_ifindex_properties;
+        }
+        size = 1024;
+    }
+#endif /* FABRIC_ENABLE */
+    action non_ip_over_fabric()
+    {
+        meta.l2_metadata.lkp_mac_sa = (bit<48>)headers.ethernet.srcAddr;
+        meta.l2_metadata.lkp_mac_da = (bit<48>)headers.ethernet.dstAddr;
+        meta.l2_metadata.lkp_mac_type = (bit<16>)headers.ethernet.etherType;
+    }
+    action ipv4_over_fabric()
+    {
+        meta.l2_metadata.lkp_mac_sa = (bit<48>)headers.ethernet.srcAddr;
+        meta.l2_metadata.lkp_mac_da = (bit<48>)headers.ethernet.dstAddr;
+        meta.ipv4_metadata.lkp_ipv4_sa = (bit<32>)headers.ipv4.srcAddr;
+        meta.ipv4_metadata.lkp_ipv4_da = (bit<32>)headers.ipv4.dstAddr;
+        meta.l3_metadata.lkp_ip_proto = (bit<8>)headers.ipv4.protocol;
+        meta.l3_metadata.lkp_l4_sport = (bit<16>)meta.l3_metadata.lkp_outer_l4_sport;
+        meta.l3_metadata.lkp_l4_dport = (bit<16>)meta.l3_metadata.lkp_outer_l4_dport;
+    }
+    action ipv6_over_fabric()
+    {
+        meta.l2_metadata.lkp_mac_sa = (bit<48>)headers.ethernet.srcAddr;
+        meta.l2_metadata.lkp_mac_da = (bit<48>)headers.ethernet.dstAddr;
+        meta.ipv6_metadata.lkp_ipv6_sa = (bit<128>)headers.ipv6.srcAddr;
+        meta.ipv6_metadata.lkp_ipv6_da = (bit<128>)headers.ipv6.dstAddr;
+        meta.l3_metadata.lkp_ip_proto = (bit<8>)headers.ipv6.nextHdr;
+        meta.l3_metadata.lkp_l4_sport = (bit<16>)meta.l3_metadata.lkp_outer_l4_sport;
+        meta.l3_metadata.lkp_l4_dport = (bit<16>)meta.l3_metadata.lkp_outer_l4_dport;
+    }
+    table native_packet_over_fabric
+    {
+        key = {
+            headers.ipv4.isValid(): exact;
+#ifndef IPV6_DISABLE
+            headers.ipv6.isValid(): exact;
+#endif /* IPV6_DISABLE */
+        }
+        actions = {
+            non_ip_over_fabric;
+            ipv4_over_fabric;
+#ifndef IPV6_DISABLE
+            ipv6_over_fabric;
+#endif /* IPV6_DISABLE */
+        }
+        size = 1024;
+    }
+
+    apply
+    {
+        if (meta.ingress_metadata.port_type != PORT_TYPE_NORMAL) {
+            fabric_ingress_dst_lkp.apply();
+#ifdef FABRIC_ENABLE
+            if (meta.ingress_metadata.port_type == PORT_TYPE_FABRIC) {
+                if (headers.fabric_header_multicast.isValid()) {
+                    fabric_ingress_src_lkp.apply();
+                }
+                if (meta.tunnel_metadata.tunnel_terminate == FALSE) {
+                    native_packet_over_fabric.apply();
+                }
+            }
+#endif /* FABRIC_ENABLE */
+        }
     }
 }
 
 /*****************************************************************************/
 /* Fabric LAG resolution                                                     */
 /*****************************************************************************/
+control process_fabric_lag(inout headers_t headers,
+                           inout metadata meta,
+                           inout standard_metadata_t standard_metadata)
+{
 #ifdef FABRIC_ENABLE
-action set_fabric_lag_port(port) {
-    modify_field(standard_metadata.egress_spec, port);
-}
-
+    @mode("fair") action_selector(HashAlgorithm.identity, LAG_GROUP_TABLE_SIZE, LAG_BIT_WIDTH) fabric_lag_action_profile;
+    action nop() {}
+    action set_fabric_lag_port(bit<9> port)
+    {
+        standard_metadata.egress_spec = port;
+    }
 #ifndef MULTICAST_DISABLE
-action set_fabric_multicast(fabric_mgid) {
-    modify_field(multicast_metadata.mcast_grp, intrinsic_metadata.mcast_grp);
-
-#ifdef FABRIC_NO_LOCAL_SWITCHING
-    // no local switching, reset fields to send packet on fabric mgid
-    modify_field(intrinsic_metadata.mcast_grp, fabric_mgid);
+#ifndef FABRIC_NO_LOCAL_SWITCHING
+    action set_fabric_multicast()
+    {
+        meta.multicast_metadata.mcast_grp = (bit<16>)meta.intrinsic_metadata.mcast_grp;
+    }
+#else // dodge warning
+    action set_fabric_multicast(bit<8> fabric_mgid)
+    {
+        meta.multicast_metadata.mcast_grp = (bit<16>)meta.intrinsic_metadata.mcast_grp;
+        // no local switching, reset fields to send packet on fabric mgid
+        meta.intrinsic_metadata.mcast_grp = fabric_mgid;
+    }
 #endif /* FABRIC_NO_LOCAL_SWITCHING */
-}
 #endif /* MULTICAST_DISABLE */
-
-field_list fabric_lag_hash_fields {
-    hash_metadata.hash2;
-}
-
-field_list_calculation fabric_lag_hash {
-    input {
-        fabric_lag_hash_fields;
+    table fabric_lag
+    {
+        key = {
+            meta.fabric_metadata.dst_device: exact;
+            meta.hash_metadata.hash2       : selector;
+        }
+        actions = {
+            nop;
+            set_fabric_lag_port;
+            set_fabric_multicast;
+        }
+        implementation = fabric_lag_action_profile;
     }
-    algorithm : identity;
-    output_width : LAG_BIT_WIDTH;
-}
-
-action_selector fabric_lag_selector {
-    selection_key : fabric_lag_hash;
-    selection_mode : fair;
-}
-
-action_profile fabric_lag_action_profile {
-    actions {
-        nop;
-        set_fabric_lag_port;
-#ifndef MULTICAST_DISABLE
-        set_fabric_multicast;
-#endif /* MULTICAST_DISABLE */
-    }
-    size : LAG_GROUP_TABLE_SIZE;
-    dynamic_action_selection : fabric_lag_selector;
-}
-
-table fabric_lag {
-    reads {
-        fabric_metadata.dst_device : exact;
-    }
-    action_profile: fabric_lag_action_profile;
-}
 #endif /* FABRIC_ENABLE */
 
-control process_fabric_lag {
+    apply
+    {
 #ifdef FABRIC_ENABLE
-    apply(fabric_lag);
+        fabric_lag.apply();
 #endif /* FABRIC_ENABLE */
+    }
 }
 
+// /*****************************************************************************/
+// /* Fabric rewrite actions                                                    */
+// /*****************************************************************************/
+// action cpu_rx_rewrite()
+// {
+//     headers.fabric_header.setValid();
+//     headers.fabric_header.headerVersion = 2w0;
+//     headers.fabric_header.packetVersion = 2w0;
+//     headers.fabric_header.pad1 = 1w0;
+//     headers.fabric_header.packetType = FABRIC_HEADER_TYPE_CPU;
+//     headers.fabric_header_cpu.setValid();
+//     headers.fabric_header_cpu.ingressPort = (bit<16>)meta.ingress_metadata.ingress_port;
+//     headers.fabric_header_cpu.ingressIfindex = (bit<16>)meta.ingress_metadata.ifindex;
+//     headers.fabric_header_cpu.ingressBd = (bit<16>)meta.ingress_metadata.bd;
+//     headers.fabric_header_cpu.reasonCode = (bit<16>)meta.fabric_metadata.reason_code;
+//     headers.fabric_payload_header.setValid();
+//     headers.fabric_payload_header.etherType = (bit<16>)headers.ethernet.etherType;
+//     headers.ethernet.etherType = ETHERTYPE_BF_FABRIC;
+// }
 
-/*****************************************************************************/
-/* Fabric rewrite actions                                                    */
-/*****************************************************************************/
-action cpu_rx_rewrite() {
-    add_header(fabric_header);
-    modify_field(fabric_header.headerVersion, 0);
-    modify_field(fabric_header.packetVersion, 0);
-    modify_field(fabric_header.pad1, 0);
-    modify_field(fabric_header.packetType, FABRIC_HEADER_TYPE_CPU);
-    add_header(fabric_header_cpu);
-    modify_field(fabric_header_cpu.ingressPort, ingress_metadata.ingress_port);
-    modify_field(fabric_header_cpu.ingressIfindex, ingress_metadata.ifindex);
-    modify_field(fabric_header_cpu.ingressBd, ingress_metadata.bd);
-    modify_field(fabric_header_cpu.reasonCode, fabric_metadata.reason_code);
-    add_header(fabric_payload_header);
-    modify_field(fabric_payload_header.etherType, ethernet.etherType);
-    modify_field(ethernet.etherType, ETHERTYPE_BF_FABRIC);
-}
+// action fabric_rewrite(bit<14> tunnel_index)
+// {
+//     meta.tunnel_metadata.tunnel_index = tunnel_index;
+// }
 
-action fabric_rewrite(tunnel_index) {
-    modify_field(tunnel_metadata.tunnel_index, tunnel_index);
-}
+// #ifdef FABRIC_ENABLE
+// action fabric_unicast_rewrite()
+// {
+//     headers.fabric_header.setValid();
+//     headers.fabric_header.headerVersion = 2w0;
+//     headers.fabric_header.packetVersion = 2w0;
+//     headers.fabric_header.pad1 = 1w0;
+//     headers.fabric_header.packetType = FABRIC_HEADER_TYPE_UNICAST;
+//     headers.fabric_header.dstDevice = (bit<8>)meta.fabric_metadata.dst_device;
+//     headers.fabric_header.dstPortOrGroup = (bit<16>)meta.fabric_metadata.dst_port;
 
-#ifdef FABRIC_ENABLE
-action fabric_unicast_rewrite() {
-    add_header(fabric_header);
-    modify_field(fabric_header.headerVersion, 0);
-    modify_field(fabric_header.packetVersion, 0);
-    modify_field(fabric_header.pad1, 0);
-    modify_field(fabric_header.packetType, FABRIC_HEADER_TYPE_UNICAST);
-    modify_field(fabric_header.dstDevice, fabric_metadata.dst_device);
-    modify_field(fabric_header.dstPortOrGroup, fabric_metadata.dst_port);
+//     headers.fabric_header_unicast.setValid();
+//     headers.fabric_header_unicast.tunnelTerminate = (bit<1>)meta.tunnel_metadata.tunnel_terminate;
+//     headers.fabric_header_unicast.routed = (bit<1>)meta.l3_metadata.routed;
+//     headers.fabric_header_unicast.outerRouted = (bit<1>)meta.l3_metadata.outer_routed;
+//     headers.fabric_header_unicast.ingressTunnelType = (bit<5>)meta.tunnel_metadata.ingress_tunnel_type;
+//     headers.fabric_header_unicast.nexthopIndex = (bit<16>)meta.l3_metadata.nexthop_index;
+//     headers.fabric_payload_header.setValid();
+//     headers.fabric_payload_header.etherType = (bit<16>)headers.ethernet.etherType;
+//     headers.ethernet.etherType = ETHERTYPE_BF_FABRIC;
+// }
 
-    add_header(fabric_header_unicast);
-    modify_field(fabric_header_unicast.tunnelTerminate,
-                 tunnel_metadata.tunnel_terminate);
-    modify_field(fabric_header_unicast.routed, l3_metadata.routed);
-    modify_field(fabric_header_unicast.outerRouted,
-                 l3_metadata.outer_routed);
-    modify_field(fabric_header_unicast.ingressTunnelType,
-                 tunnel_metadata.ingress_tunnel_type);
-    modify_field(fabric_header_unicast.nexthopIndex,
-                 l3_metadata.nexthop_index);
-    add_header(fabric_payload_header);
-    modify_field(fabric_payload_header.etherType, ethernet.etherType);
-    modify_field(ethernet.etherType, ETHERTYPE_BF_FABRIC);
-}
+// #ifndef MULTICAST_DISABLE
+// action fabric_multicast_rewrite(bit<16> fabric_mgid)
+// {
+//     headers.fabric_header.setValid();
+//     headers.fabric_header.headerVersion = 2w0;
+//     headers.fabric_header.packetVersion = 2w0;
+//     headers.fabric_header.pad1 = 1w0;
+//     headers.fabric_header.packetType = FABRIC_HEADER_TYPE_MULTICAST;
+//     headers.fabric_header.dstDevice = FABRIC_DEVICE_MULTICAST;
+//     headers.fabric_header.dstPortOrGroup = fabric_mgid;
+//     headers.fabric_header_multicast.ingressIfindex = (bit<16>)meta.ingress_metadata.ifindex;
+//     headers.fabric_header_multicast.ingressBd = (bit<16>)meta.ingress_metadata.bd;
 
-#ifndef MULTICAST_DISABLE
-action fabric_multicast_rewrite(fabric_mgid) {
-    add_header(fabric_header);
-    modify_field(fabric_header.headerVersion, 0);
-    modify_field(fabric_header.packetVersion, 0);
-    modify_field(fabric_header.pad1, 0);
-    modify_field(fabric_header.packetType, FABRIC_HEADER_TYPE_MULTICAST);
-    modify_field(fabric_header.dstDevice, FABRIC_DEVICE_MULTICAST);
-    modify_field(fabric_header.dstPortOrGroup, fabric_mgid);
-    modify_field(fabric_header_multicast.ingressIfindex, ingress_metadata.ifindex);
-    modify_field(fabric_header_multicast.ingressBd, ingress_metadata.bd);
-
-    add_header(fabric_header_multicast);
-    modify_field(fabric_header_multicast.tunnelTerminate,
-                 tunnel_metadata.tunnel_terminate);
-    modify_field(fabric_header_multicast.routed, l3_metadata.routed);
-    modify_field(fabric_header_multicast.outerRouted,
-                 l3_metadata.outer_routed);
-    modify_field(fabric_header_multicast.ingressTunnelType,
-                 tunnel_metadata.ingress_tunnel_type);
-
-    modify_field(fabric_header_multicast.mcastGrp,
-                 multicast_metadata.mcast_grp);
-
-    add_header(fabric_payload_header);
-    modify_field(fabric_payload_header.etherType, ethernet.etherType);
-    modify_field(ethernet.etherType, ETHERTYPE_BF_FABRIC);
-}
-#endif /* MULTICAST_DISABLE */
-#endif /* FABRIC_ENABLE */
+//     headers.fabric_header_multicast.setValid();
+//     headers.fabric_header_multicast.tunnelTerminate = (bit<1>)meta.tunnel_metadata.tunnel_terminate;
+//     headers.fabric_header_multicast.routed = (bit<1>)meta.l3_metadata.routed;
+//     headers.fabric_header_multicast.outerRouted = (bit<1>)meta.l3_metadata.outer_routed;
+//     headers.fabric_header_multicast.ingressTunnelType = (bit<5>)meta.tunnel_metadata.ingress_tunnel_type;
+//     headers.fabric_header_multicast.mcastGrp = (bit<16>)meta.multicast_metadata.mcast_grp;
+    
+//     headers.fabric_payload_header.setValid();
+//     headers.fabric_payload_header.etherType = (bit<16>)headers.ethernet.etherType;
+//     headers.ethernet.etherType = ETHERTYPE_BF_FABRIC;
+// }
+// #endif /* MULTICAST_DISABLE */
+// #endif /* FABRIC_ENABLE */

@@ -14,97 +14,68 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifdef SFLOW_ENABLE
-header_type sflow_meta_t {
-    fields {
-        sflow_session_id        : 16;
-    }
-}
-metadata sflow_meta_t sflow_metadata;
-
-counter sflow_ingress_session_pkt_counter {
-    type : packets;
-    direct : sflow_ingress;
-    saturating;
-}
-#endif
 
 /* ---------------------- sflow ingress processing ------------------------ */
-#ifdef SFLOW_ENABLE
-action sflow_ing_session_enable(rate_thr, session_id)
+control process_ingress_sflow(inout headers_t headers, inout metadata meta)
 {
-    /* take_sample(sat) = rate_thr + take_sample(initialized from RNG) */
-    /* if take_sample == max_val, sample will be take in the subsequent table-action */
-    add(ingress_metadata.sflow_take_sample, rate_thr, 
-                                ingress_metadata.sflow_take_sample);
-    modify_field(sflow_metadata.sflow_session_id, session_id);
-}
-
-table sflow_ingress {
-    /* Table to determine ingress port based enablement */
-    /* This is separate from ACLs so that this table can be applied */
-    /* independent of ACLs */
-    reads {
-        ingress_metadata.ifindex    : ternary;
-        ipv4_metadata.lkp_ipv4_sa   : ternary;
-        ipv4_metadata.lkp_ipv4_da   : ternary;
-        sflow                       : valid;    /* do not sflow an sflow frame */
-    }
-    actions {
-        nop; /* default action */
-        sflow_ing_session_enable;
-    }
-    size : SFLOW_INGRESS_TABLE_SIZE;
-}
-
-field_list sflow_cpu_info {
-    cpu_info;
-    sflow_metadata.sflow_session_id;
-    i2e_metadata.mirror_session_id;
-    ingress_metadata.egress_ifindex;
-}
-
-action sflow_ing_pkt_to_cpu(sflow_i2e_mirror_id ) {
-    modify_field(i2e_metadata.mirror_session_id, sflow_i2e_mirror_id);
-    clone_ingress_pkt_to_egress(sflow_i2e_mirror_id, sflow_cpu_info);
-}
-
-table sflow_ing_take_sample {
-    /* take_sample > MAX_VAL_31 and valid sflow_session_id => take the sample */
-    reads {
-        ingress_metadata.sflow_take_sample : ternary;
-        sflow_metadata.sflow_session_id : exact;
-    }
-    actions {
-        nop;
-        sflow_ing_pkt_to_cpu;
-    }
-
-    size: MAX_SFLOW_SESSIONS;
-}
-#endif /*SFLOW_ENABLE */
-
-control process_ingress_sflow {
 #ifdef SFLOW_ENABLE
-    apply(sflow_ingress);
-    apply(sflow_ing_take_sample);
-#endif
-}
-/* ----- egress processing ----- */
+    direct_counter(CounterType.packets) sflow_ingress_session_pkt_counter;
+    action nop() {}
+    action sflow_ing_pkt_to_cpu(bit<32> sflow_i2e_mirror_id)
+    {
+        meta.i2e_metadata.mirror_session_id = (bit<16>)sflow_i2e_mirror_id;
+        clone_preserving_field_list(CloneType.I2E, (bit<32>)sflow_i2e_mirror_id, (bit<8>)FieldLists.sflow_cpu_info);
+    }
+    table sflow_ing_take_sample
+    {
+        /* take_sample > MAX_VAL_31 and valid sflow_session_id => take the sample */
+        key = {
+            meta.ingress_metadata.sflow_take_sample : ternary;
+            meta.sflow_metadata.sflow_session_id    : exact;
+        }
+        actions = {
+            nop;
+            sflow_ing_pkt_to_cpu;
+        }
+        size = MAX_SFLOW_SESSIONS;
+    }
+    action act_counter()
+    {
+        sflow_ingress_session_pkt_counter.count();
+    }
+    action sflow_ing_session_enable(bit<32> rate_thr, bit<16> session_id)
+    {
+        /* take_sample(sat) = rate_thr + take_sample(initialized from RNG) */
+        /* if take_sample == max_val, sample will be take in the subsequent table-action */
+        sflow_ingress_session_pkt_counter.count();
+        meta.ingress_metadata.sflow_take_sample = rate_thr |+| meta.ingress_metadata.sflow_take_sample;
+        meta.sflow_metadata.sflow_session_id = session_id;
+    }
+    table sflow_ingress
+    {
+        /* Table to determine ingress port based enablement */
+        /* This is separate from ACLs so that this table can be applied */
+        /* independent of ACLs */
+        key = {
+            meta.ingress_metadata.ifindex  : ternary;
+            meta.ipv4_metadata.lkp_ipv4_sa : ternary;
+            meta.ipv4_metadata.lkp_ipv4_da : ternary;
+            headers.sflow_hdr.isValid()        : exact; /* do not sflow an sflow frame */
+        }
+        actions = {
+            act_counter; /* default action */
+            sflow_ing_session_enable;
+        }
+        size = SFLOW_INGRESS_TABLE_SIZE;
+        counters = sflow_ingress_session_pkt_counter;
+    }
+#endif /* SFLOW_ENABLE */
+
+    apply
+    {
 #ifdef SFLOW_ENABLE
-action sflow_pkt_to_cpu(reason_code) {
-    /* This action is called from the mirror table in the egress pipeline */
-    /* Add sflow header to the packet */
-    /* sflow header sits between cpu header and the rest of the original packet */
-    /* The reasonCode in the cpu header is used to identify the */
-    /* presence of the cpu header */
-    /* pkt_count(sample_pool) on a given sflow session is read directly by CPU */
-    /* using counter read mechanism */
-    add_header(fabric_header_sflow);
-    modify_field(fabric_header_sflow.sflow_session_id,
-                 sflow_metadata.sflow_session_id);
-    modify_field(fabric_header_sflow.sflow_egress_ifindex,
-                 ingress_metadata.egress_ifindex);
-    modify_field(fabric_metadata.reason_code, reason_code);
+        sflow_ingress.apply();
+        sflow_ing_take_sample.apply();
+#endif /* SFLOW_ENABLE */
+    }
 }
-#endif

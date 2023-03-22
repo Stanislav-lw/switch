@@ -18,131 +18,125 @@ limitations under the License.
  * Security related processing - Storm control, IPSG, etc.
  */
 
-/*
- * security metadata
- */
-header_type security_metadata_t {
-    fields {
-        ipsg_enabled : 1;                      /* is ip source guard feature enabled */
-        ipsg_check_fail : 1;                   /* ipsg check failed */
-    }
-}
-
-metadata security_metadata_t security_metadata;
-
-#ifndef STORM_CONTROL_DISABLE
 /*****************************************************************************/
 /* Storm control                                                             */
 /*****************************************************************************/
-#ifndef STATS_DISABLE
-counter storm_control_stats {
-    type : packets;
-    direct : storm_control_stats;
-}
-
-table storm_control_stats {
-    reads {
-        meter_metadata.packet_color: exact;
-        standard_metadata.ingress_port : exact;
-    }
-    actions {
-        nop;
-    }
-    size: STORM_CONTROL_STATS_TABLE_SIZE;
-}
-#endif /* STATS_DISABLE */
-
-#ifndef METER_DISABLE
-meter storm_control_meter {
-    type : bytes;
-    static : storm_control;
-    result : meter_metadata.packet_color;
-    instance_count : STORM_CONTROL_METER_TABLE_SIZE;
-}
-#endif /* METER_DISABLE */
-
-action set_storm_control_meter(meter_idx) {
-#ifndef METER_DISABLE
-    execute_meter(storm_control_meter, meter_idx,
-                  meter_metadata.packet_color);
-    modify_field(meter_metadata.meter_index, meter_idx);
-#endif /* METER_DISABLE */
-}
-
-table storm_control {
-    reads {
-        standard_metadata.ingress_port : exact;
-        l2_metadata.lkp_pkt_type : ternary;
-    }
-    actions {
-        nop;
-        set_storm_control_meter;
-    }
-    size : STORM_CONTROL_TABLE_SIZE;
-}
-#endif /* STORM_CONTROL_DISABLE */
-
-control process_storm_control {
-#ifndef STORM_CONTROL_DISABLE
-    if (ingress_metadata.port_type == PORT_TYPE_NORMAL) {
-        apply(storm_control);
-    }
-#endif /* STORM_CONTROL_DISABLE */
-}
-
-control process_storm_control_stats {
+control process_storm_control_stats(inout metadata meta, inout standard_metadata_t standard_metadata)
+{
 #ifndef STORM_CONTROL_DISABLE
 #ifndef STATS_DISABLE
-    apply(storm_control_stats);
+    direct_counter(CounterType.packets) storm_control_stats_counter;
+    action nop() 
+    {
+        storm_control_stats_counter.count();
+    }
+    table storm_control_stats
+    {
+        key = {
+            meta.meter_metadata.packet_color    : exact;
+            standard_metadata.ingress_port      : exact;
+        }
+        actions = {
+            nop;
+        }
+        size = STORM_CONTROL_STATS_TABLE_SIZE;
+        counters = storm_control_stats_counter;
+    }
 #endif /* STATS_DISABLE */
 #endif /* STORM_CONTROL_DISABLE */
+
+    apply 
+    {
+#ifndef STORM_CONTROL_DISABLE
+#ifndef STATS_DISABLE
+        storm_control_stats.apply();
+#endif /* STATS_DISABLE */
+#endif /* STORM_CONTROL_DISABLE */
+    }
 }
 
+control process_storm_control(inout metadata meta, inout standard_metadata_t standard_metadata)
+{
+#ifndef STORM_CONTROL_DISABLE
+    meter<bit<10>>(STORM_CONTROL_METER_TABLE_SIZE, MeterType.bytes) storm_control_meter;
+    action nop() {}
+    action set_storm_control_meter(bit<16> meter_idx)
+    {
+        storm_control_meter.execute_meter((bit<10>)(bit<10>)meter_idx, meta.meter_metadata.packet_color);
+        meta.meter_metadata.meter_index = (bit<16>)meter_idx;
+    }
+    table storm_control
+    {
+        key = {
+            standard_metadata.ingress_port  : exact;
+            meta.l2_metadata.lkp_pkt_type   : ternary;
+        }
+        actions = {
+            set_storm_control_meter;
+            nop;
+        }
+        size = STORM_CONTROL_TABLE_SIZE;
+    }
+#endif /* STORM_CONTROL_DISABLE */
 
-#ifndef IPSG_DISABLE
+    apply
+    {
+#ifndef STORM_CONTROL_DISABLE
+        if (meta.ingress_metadata.port_type == PORT_TYPE_NORMAL) {
+            storm_control.apply();
+        }
+#endif /* STORM_CONTROL_DISABLE */
+    }
+}
+
 /*****************************************************************************/
 /* IP Source Guard                                                           */
 /*****************************************************************************/
-action ipsg_miss() {
-    modify_field(security_metadata.ipsg_check_fail, TRUE);
-}
-
-table ipsg_permit_special {
-    reads {
-        l3_metadata.lkp_ip_proto : ternary;
-        l3_metadata.lkp_l4_dport : ternary;
-        ipv4_metadata.lkp_ipv4_da : ternary;
+control process_ip_sourceguard(inout metadata meta)
+{
+#ifndef IPSG_DISABLE
+    action on_miss() {}
+    action ipsg_miss() 
+    {
+        meta.security_metadata.ipsg_check_fail = TRUE;
     }
-    actions {
-        ipsg_miss;
+    table ipsg_permit_special
+    {
+        key = {
+            meta.l3_metadata.lkp_ip_proto   : ternary;
+            meta.l3_metadata.lkp_l4_dport   : ternary;
+            meta.ipv4_metadata.lkp_ipv4_da  : ternary;
+        }
+        actions = {
+            ipsg_miss;
+        }
+        size = IPSG_PERMIT_SPECIAL_TABLE_SIZE;
     }
-    size : IPSG_PERMIT_SPECIAL_TABLE_SIZE;
-}
-
-table ipsg {
-    reads {
-        ingress_metadata.ifindex : exact;
-        ingress_metadata.bd : exact;
-        l2_metadata.lkp_mac_sa : exact;
-        ipv4_metadata.lkp_ipv4_sa : exact;
+    table ipsg {
+        key = {
+            meta.ingress_metadata.ifindex  : exact;
+            meta.ingress_metadata.bd       : exact;
+            meta.l2_metadata.lkp_mac_sa    : exact;
+            meta.ipv4_metadata.lkp_ipv4_sa : exact;
+        }
+        actions = {
+            on_miss;
+        }
+        size = IPSG_TABLE_SIZE;
     }
-    actions {
-        on_miss;
-    }
-    size : IPSG_TABLE_SIZE;
-}
 #endif /* IPSG_DISABLE */
 
-control process_ip_sourceguard {
+    apply 
+    {
 #ifndef IPSG_DISABLE
     /* l2 security features */
-    if ((ingress_metadata.port_type == PORT_TYPE_NORMAL) and
-        (security_metadata.ipsg_enabled == TRUE)) {
-        apply(ipsg) {
-            on_miss {
-                apply(ipsg_permit_special);
+        if (meta.ingress_metadata.port_type == PORT_TYPE_NORMAL && meta.security_metadata.ipsg_enabled == TRUE) {
+            switch (ipsg.apply().action_run) {
+                on_miss: {
+                    ipsg_permit_special.apply();
+                }
             }
         }
-    }
 #endif /* IPSG_DISABLE */
+    }
 }

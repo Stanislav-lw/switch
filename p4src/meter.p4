@@ -1,78 +1,82 @@
 /*
  * Meter processing
  */
-
-/*
- * Meter metadata
- */
- header_type meter_metadata_t {
-     fields {
-         packet_color : 2;               /* packet color */
-         meter_index : 16;               /* meter index */
-     }
- }
-metadata meter_metadata_t meter_metadata;
-
 /*****************************************************************************/
 /* Meters                                                                    */
 /*****************************************************************************/
+control process_meter_index(inout metadata meta)
+{
 #ifndef METER_DISABLE
-action meter_deny() {
-    drop();
+    direct_meter<bit<2>>(MeterType.bytes) direct_meter_index;
+    action nop()
+    {
+        direct_meter_index.read(meta.meter_metadata.packet_color);
+    }
+    table meter_index 
+    {
+        key = {
+            meta.meter_metadata.meter_index: exact;
+        }
+        actions = {
+            nop;
+        }
+        size = METER_INDEX_TABLE_SIZE;
+        meters = direct_meter_index;
+    }
+#endif /* METER_DISABLE */
+
+    apply 
+    {
+#ifndef METER_DISABLE
+        if (DO_LOOKUP(METER)) {
+            meter_index.apply();
+        }
+#endif /* METER_DISABLE */
+    }
 }
 
-action meter_permit() {
-}
-
+control process_meter_action(inout metadata meta, inout standard_metadata_t standard_metadata)
+{
+#ifndef METER_DISABLE
 #ifndef STATS_DISABLE
-counter meter_stats {
-    type : packets;
-    direct : meter_action;
-}
+    direct_counter(CounterType.packets) meter_stats;
 #endif /* STATS_DISABLE */
-
-table meter_action {
-    reads {
-        meter_metadata.packet_color : exact;
-        meter_metadata.meter_index : exact;
+    action meter_permit()
+    {
+#ifndef STATS_DISABLE
+        meter_stats.count();
+#endif /* STATS_DISABLE */
     }
-
-    actions {
-        meter_permit;
-        meter_deny;
+    action meter_deny()
+    {
+#ifndef STATS_DISABLE
+        meter_stats.count();
+#endif /* STATS_DISABLE */
+        mark_to_drop(standard_metadata);
     }
-    size: METER_ACTION_TABLE_SIZE;
-}
-
-meter meter_index {
-    type : bytes;
-    direct : meter_index;
-    result : meter_metadata.packet_color;
-}
-
-table meter_index {
-    reads {
-        meter_metadata.meter_index: exact;
+    table meter_action
+    {
+        key = {
+            meta.meter_metadata.packet_color: exact;
+            meta.meter_metadata.meter_index : exact;
+        }
+        actions = {
+            meter_permit;
+            meter_deny;
+        }
+        size = METER_ACTION_TABLE_SIZE;
+#ifndef STATS_DISABLE
+        counters = meter_stats;
+#endif /* STATS_DISABLE */
     }
-    actions {
-        nop;
-    }
-    size: METER_INDEX_TABLE_SIZE;
-}
 #endif /* METER_DISABLE */
-
-control process_meter_index {
+    
+    apply
+    {
 #ifndef METER_DISABLE
-    if (DO_LOOKUP(METER)) {
-        apply(meter_index);
-    }
+        if (DO_LOOKUP(METER)) {
+            meter_action.apply();
+        }
 #endif /* METER_DISABLE */
-}
-
-control process_meter_action {
-#ifndef METER_DISABLE
-    if (DO_LOOKUP(METER)) {
-        apply(meter_action);
     }
-#endif /* METER_DISABLE */
 }
